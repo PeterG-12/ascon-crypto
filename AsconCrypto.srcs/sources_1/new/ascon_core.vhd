@@ -6,11 +6,11 @@ use work.ascon_package.ALL;
 
 
 entity ascon_core is
---  Port ( );
+    port(clk : in std_logic);
 end ascon_core;
 
 architecture Behavioral of ascon_core is
-
+    
 begin
     
 

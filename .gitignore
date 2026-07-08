@@ -62,3 +62,15 @@ xvlog.*
 
 ## checkpoint files
 *.dcp
+
+
+
+#Python
+.venv/
+venv/
+env/
+ENV/
+*.venv
+*.pyc
+
+*.cf

@@ -22,6 +22,11 @@ package ascon_package is
         x"000000000000005a",
         x"000000000000004b"
     );
+
+
+    type sliced_state_type is array (0 to 4) of std_logic_vector(63 downto 0);
+    
+
     
 
 end ascon_package;
