@@ -26,7 +26,7 @@ package ascon_package is
 
     type sliced_state_type is array (0 to 4) of std_logic_vector(63 downto 0);
     
-
-    
+    constant IV_AEAD : std_logic_vector(63 downto 0) := x"00001000808c0001";
+    constant IV_HASH : std_logic_vector(63 downto 0) := x"0000080100cc0002";
 
 end ascon_package;

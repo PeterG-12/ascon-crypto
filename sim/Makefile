@@ -7,10 +7,10 @@ COMPILE_ARGS += --std=08
 
 #Stub generation
 # Python test module name (Runs Copra first, then your test)
-COCOTB_TEST_MODULES = copra.integration.autostub,test_ascon_sbox
+COCOTB_TEST_MODULES = copra.integration.autostub,test_ascon_hash
 
-VHDL_SOURCES += $(HOME)/Vivado/AsconCrypto/AsconCrypto.srcs/sources_1/new/ascon_sbox.vhd
-TOPLEVEL = ascon_sbox
+VHDL_SOURCES += $(HOME)/Vivado/AsconCrypto/AsconCrypto.srcs/sources_1/new/*.vhd
+TOPLEVEL = ascon_hash256
 
 #VHDL_SOURCES += $(PWD)/vhdl/*.vhd
 # Top-level entity name

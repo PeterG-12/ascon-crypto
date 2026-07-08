@@ -1,6 +1,21 @@
 v 4
-file . "ascon_core.vhd" "b5ca0bb3c05753b5cf8f6fbd2f6dd5128fe08e5b" "20260708092104.415":
-  entity ascon_core at 1( 0) + 0 on 16;
-  architecture behavioral of ascon_core at 12( 140) + 0 on 17;
-file . "ascon_package.vhd" "aac94687a96c40b6308a86a4751f12dde06a50cb" "20260708092103.030":
-  package ascon_package at 1( 0) + 0 on 15;
+file . "ascon_sbox.vhd" "300a58f3eb91f20cdbadaa5d41518b0adc843fab" "20260708141619.746":
+  entity ascon_sbox at 1( 0) + 0 on 34;
+  architecture behavioral of ascon_sbox at 13( 239) + 0 on 35;
+file . "ascon_package.vhd" "ba20ee2426c53eca406a252ace49100f15fe5bd1" "20260708141619.746":
+  package ascon_package at 1( 0) + 0 on 31;
+file . "ascon_core.vhd" "dc8ca22932b371062fe2175fa4983011733e348d" "20260708152316.994":
+  entity ascon_core at 1( 0) + 0 on 44;
+  architecture behavioral of ascon_core at 19( 412) + 0 on 45;
+file . "ascon_linear_layer.vhd" "4c64f8722a7177f8e1e2ad86db070a881352acd7" "20260708151942.421":
+  entity ascon_linear_layer at 1( 0) + 0 on 36;
+  architecture behavioral of ascon_linear_layer at 13( 255) + 0 on 37;
+file . "ascon_aed.vhd" "11bff1567f02b306e25e7b351e445daece05aa91" "20260708141619.745":
+  entity ascon_aed at 22( 467) + 0 on 23;
+  architecture behavioral of ascon_aed at 38( 853) + 0 on 24;
+file . "ascon_hash256.vhd" "c6aa9e78cb1a6a8dd1b1762dc6853424796b2701" "20260708152029.812":
+  entity ascon_hash256 at 1( 0) + 0 on 42;
+  architecture behavioral of ascon_hash256 at 19( 476) + 0 on 43;
+file . "ascon_permutation.vhd" "874906f51b85038d678dfefc7a7902022f06083d" "20260708141619.746":
+  entity ascon_permutation at 22( 475) + 0 on 32;
+  architecture behavioral of ascon_permutation at 38( 877) + 0 on 33;
