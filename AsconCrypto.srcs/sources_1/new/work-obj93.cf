@@ -1,0 +1,6 @@
+v 4
+file . "ascon_core.vhd" "b5ca0bb3c05753b5cf8f6fbd2f6dd5128fe08e5b" "20260708092104.415":
+  entity ascon_core at 1( 0) + 0 on 16;
+  architecture behavioral of ascon_core at 12( 140) + 0 on 17;
+file . "ascon_package.vhd" "aac94687a96c40b6308a86a4751f12dde06a50cb" "20260708092103.030":
+  package ascon_package at 1( 0) + 0 on 15;
