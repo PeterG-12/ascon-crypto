@@ -25,7 +25,7 @@ begin
     process(state_i)
     begin
         for i in 0 to 4 loop
-            sliced_state(i) <= state_i(64 * i + 63 downto 64 * i + 0); -- Extract 64-bit words
+            sliced_state(4 - i) <= state_i(64 * i + 63 downto 64 * i + 0); -- Extract 64-bit words
         end loop;
     end process;
 
@@ -35,6 +35,9 @@ begin
     sliced_out_state(3) <= sliced_state(3) xor rotr64(sliced_state(3), 10) xor rotr64(sliced_state(3), 17);
     sliced_out_state(4) <= sliced_state(4) xor rotr64(sliced_state(4),  7) xor rotr64(sliced_state(4), 41);
 
-    state_o <= sliced_out_state(4) & sliced_out_state(3) & sliced_out_state(2) & sliced_out_state(1) & sliced_out_state(0);
+    --state_o <= sliced_out_state(4) & sliced_out_state(3) & sliced_out_state(2) & sliced_out_state(1) & sliced_out_state(0);
+
+    state_o <= sliced_out_state(0) & sliced_out_state(1) & sliced_out_state(2) & sliced_out_state(3) & sliced_out_state(4);
+
 
 end Behavioral;

@@ -31,7 +31,11 @@ architecture Behavioral of ascon_hash256 is
     signal H_0 : std_logic_vector(63 downto 0);
     signal H_1 : std_logic_vector(63 downto 0);
     signal H_2 : std_logic_vector(63 downto 0);
-    signal H_3 : std_logic_vector(63 downto 0);
+
+    function invert_byte_order (x : std_logic_vector(63 downto 0)) return std_logic_vector is
+        begin
+        return x(7 downto 0) & x(15 downto 8) & x(23 downto 16) & x(31 downto 24) & x(39 downto 32) & x(47 downto 40) & x(55 downto 48) & x(63 downto 56); 
+    end function;
 
 begin
         
@@ -41,6 +45,7 @@ begin
             
             if curr_state = idle then
                 if start_i = '1' then
+                    state_o <= (others => '0');
                     start_core <= '1';
                     finished_o <= '0';
                     squeeze_counter <= 0;
@@ -59,7 +64,7 @@ begin
                     start_core <= '1';
 
                     core_in <= core_out;
-                    core_in(63 downto 0) <= core_out(63 downto 0) xor m_i;
+                    core_in(319 downto 256) <= core_out(319 downto 256) xor m_i;
 
                     word_processed_o <= '1';
                     curr_state <= absorb_message;
@@ -79,7 +84,7 @@ begin
                         start_core <= '1';
 
                         core_in <= core_out;
-                        core_in(63 downto 0) <= core_out(63 downto 0) xor m_i;
+                        core_in(319 downto 256) <= core_out(319 downto 256) xor m_i;
                         word_processed_o <= '1';
 
 
@@ -89,7 +94,7 @@ begin
                         start_core <= '1';
 
                         core_in <= core_out;
-                        core_in(63 downto 0) <= core_out(63 downto 0) xor m_i;
+                        core_in(319 downto 256) <= core_out(319 downto 256) xor m_i;
                         word_processed_o <= '1';
 
 
@@ -110,25 +115,24 @@ begin
                     case squeeze_counter is
                         when 0 =>
                             start_core <= '1';
-                            H_0 <= core_out(63 downto 0);
+                            H_0 <= core_out(319 downto 256);
                             core_in <= core_out;
 
                         when 1 => 
                             start_core <= '1';
-                            H_1 <= core_out(63 downto 0);
+                            H_1 <= core_out(319 downto 256);
                             core_in <= core_out;
 
                         when 2 =>
                             start_core <= '1';
-                            H_2 <= core_out(63 downto 0);
+                            H_2 <= core_out(319 downto 256);
                             core_in <= core_out;
 
                         when others =>
                             start_core <= '0';
-                            H_3 <= core_out(63 downto 0);
                             core_in <= core_out;
                             finished_o <= '1';
-                            state_o <= H_3 & H_2 & H_1 & H_0;
+                            state_o <= invert_byte_order(H_0) & invert_byte_order(H_1) & invert_byte_order(H_2) & invert_byte_order(core_out(319 downto 256));
                             curr_state <= idle;
                     end case;
                     

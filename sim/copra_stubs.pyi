@@ -17,7 +17,6 @@ class AsconHash256(cocotb.handle.HierarchyObject):
     h_0: cocotb.handle.LogicArrayObject
     h_1: cocotb.handle.LogicArrayObject
     h_2: cocotb.handle.LogicArrayObject
-    h_3: cocotb.handle.LogicArrayObject
     m_i: cocotb.handle.LogicArrayObject
     reset_i: cocotb.handle.LogicObject
     squeeze_counter: cocotb.handle.LogicArrayObject
@@ -77,9 +76,6 @@ class AsconHash256(cocotb.handle.HierarchyObject):
 
     @overload
     def __getitem__(self, name: Literal['h_2']) -> cocotb.handle.LogicArrayObject: ...
-
-    @overload
-    def __getitem__(self, name: Literal['h_3']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
     def __getitem__(self, name: Literal['ascon_core_inst']) -> AsconCoreInst: ...

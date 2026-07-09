@@ -2,7 +2,7 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 
 package ascon_package is
-    type table5_type is array (15 downto 0) of std_logic_vector(63 downto 0); -- Type for Table 5. The constants const_i to derive round constants of the Ascon permutations
+    type table5_type is array (0 to 15) of std_logic_vector(63 downto 0); -- Type for Table 5. The constants const_i to derive round constants of the Ascon permutations
 
     constant TABLE5 : table5_type := (
         x"000000000000003c",

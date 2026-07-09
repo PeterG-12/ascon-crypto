@@ -66,7 +66,7 @@ begin
         end if;
     end process;
 
-    constant_addition <= internal_state(319 downto 192) & (internal_state(191 downto 128) xor TABLE5(round_counter)) & internal_state(127 downto 0);
+    constant_addition <= internal_state(319 downto 192) & (internal_state(191 downto 128) xor TABLE5((16 - ROUNDS + round_counter))) & internal_state(127 downto 0) when round_counter < 12 else (others => '0');
 
     ascon_sbox_inst: entity work.ascon_sbox
      port map(

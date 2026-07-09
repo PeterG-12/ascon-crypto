@@ -19,7 +19,7 @@ begin
     process(state_i)
     begin
         for i in 0 to 4 loop
-            sliced_state(i) <= state_i(64 * i + 63 downto 64 * i + 0); -- Extract 64-bit words
+            sliced_state(4 - i) <= state_i(64 * i + 63 downto 64 * i + 0); -- Extract 64-bit words
         end loop;
     end process;
 
@@ -39,7 +39,7 @@ begin
         variable xor_and_s2 : std_logic_vector(63 downto 0);
         variable xor_and_s3 : std_logic_vector(63 downto 0);
         variable xor_and_s4 : std_logic_vector(63 downto 0);
-        variable xor_and_s5 : std_logic_vector(63 downto 0);
+        variable xor_and_s0 : std_logic_vector(63 downto 0);
 
         variable s0_xor_2 : std_logic_vector(63 downto 0);
         variable s1_xor_2 : std_logic_vector(63 downto 0);
@@ -64,24 +64,27 @@ begin
         s3_xor_1  := not sliced_state(3);
         s4_xor_1  := not s3_xor_s4;
 
-        xor_and_s1 := s0_xor_1 and sliced_state(1);
-        xor_and_s2 := s1_xor_1 and sliced_state(2);
-        xor_and_s3 := s2_xor_1 and sliced_state(3);
-        xor_and_s4 := s3_xor_1 and sliced_state(4);
-        xor_and_s5 := s4_xor_1 and sliced_state(0);
+        xor_and_s0 := s0_xor_1 and sliced_state(1);
+        xor_and_s1 := s1_xor_1 and s1_xor_s2;
+        xor_and_s2 := s2_xor_1 and sliced_state(3);
+        xor_and_s3 := s3_xor_1 and s3_xor_s4;
+        xor_and_s4 := s4_xor_1 and s0_xor_s4;
 
         s0_xor_2   := s0_xor_s4 xor xor_and_s1;
         s1_xor_2   := sliced_state(1) xor xor_and_s2;
         s2_xor_2   := s1_xor_s2 xor xor_and_s3;
         s3_xor_2   := sliced_state(3) xor xor_and_s4;
-        s4_xor_2   := s3_xor_s4 xor xor_and_s5;
+        s4_xor_2   := s3_xor_s4 xor xor_and_s0;
 
         s0_xor_3   := s0_xor_2 xor s4_xor_2;
         s1_xor_3   := s0_xor_2 xor s1_xor_2;
         s2_xor_3   := not s2_xor_2;
         s3_xor_3   := s2_xor_2 xor s3_xor_2;
 
-        state_o <= s4_xor_2 & s3_xor_3 & s2_xor_3 & s1_xor_3 & s0_xor_3;
+        --state_o <= s4_xor_2 & s3_xor_3 & s2_xor_3 & s1_xor_3 & s0_xor_3;
+
+        state_o <= s0_xor_3 & s1_xor_3 & s2_xor_3 & s3_xor_3 & s4_xor_2;
+
     end process;
 
 end Behavioral;
