@@ -36,33 +36,42 @@ begin
     process(clk_i)
     begin
         if rising_edge(clk_i) then
-            if curr_state = idle then
-                finished_o <= '0';
-                if start_i = '1' then
-                    internal_state <= state_i;
-                    round_counter <= 0;
-                    curr_state <= running;
-                end if;
-            end if;
-
-            if curr_state = running then
-                if round_counter = ROUNDS then
-                    round_counter <= 0;
-                    finished_o <= '1';
-                    curr_state <= finished;
-                    state_o <= internal_state;
-                else
-                    round_counter <= round_counter + 1;
-                    internal_state <= linear_diffusion;
-                end if;
-            end if;
-
-            if curr_state = finished then
-                state_o <= (others => '0');
+            if reset_i = '1' then
+                round_counter <= 0;
                 finished_o <= '0';
                 curr_state <= idle;
-            end if;
-            
+                internal_state <= (others => '0');
+                state_o <= (others => '0');
+            else
+                
+
+                if curr_state = idle then
+                    finished_o <= '0';
+                    if start_i = '1' then
+                        internal_state <= state_i;
+                        round_counter <= 0;
+                        curr_state <= running;
+                    end if;
+                end if;
+
+                if curr_state = running then
+                    if round_counter = ROUNDS then
+                        round_counter <= 0;
+                        finished_o <= '1';
+                        curr_state <= finished;
+                        state_o <= internal_state;
+                    else
+                        round_counter <= round_counter + 1;
+                        internal_state <= linear_diffusion;
+                    end if;
+                end if;
+
+                if curr_state = finished then
+                    state_o <= (others => '0');
+                    finished_o <= '0';
+                    curr_state <= idle;
+                end if;
+            end if;    
         end if;
     end process;
 
