@@ -35,8 +35,4 @@ def parse_and_pad(hexstring : str):
     if debug: print(M)    
     return M
 
-parse_and_pad("00010203040506070809")
-parse_and_pad("0001020304050607")
-parse_and_pad("FF")
-parse_and_pad("FFFFFF")
-parse_and_pad("")
+parse_and_pad("000102")

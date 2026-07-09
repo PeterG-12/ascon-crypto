@@ -87,36 +87,47 @@ async def generate_input(dut : copra_stubs.AsconHash256, hexstring : str):
     count = len(M_list)
     i = 0
 
-    dut.m_i.value = int(M_list[i], 16)
-    logger.warning("INPUT: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
-    i += 1
+    if count > 1:
+        dut.m_i.value = int(M_list[i], 16)
+        logger.warning("INPUT: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
+        i += 1
 
-    while dut.finished_o.value != 1:
-        await dut.clk_i.rising_edge
+        while dut.finished_o.value != 1:
+            await dut.clk_i.rising_edge
 
-        if dut.word_processed_o.value == 1:
-            if i != count:
-                dut.m_i.value = int(M_list[i], 16)
-                logger.warning("INPUT: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
-                i += 1
-            if i == count:
-                dut.word_left.value = 0
+            if dut.word_processed_o.value == 1:
+                if i != count:
+                    dut.m_i.value = int(M_list[i], 16)
+                    logger.warning("INPUT: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
+                    i += 1
+                if i == count:
+                    dut.word_left.value = 0
+    else:
+        logger.warning("INPUT else: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
+        dut.m_i.value = int(M_list[i], 16)
+        dut.word_left.value = 0
 
 
-@cocotb.test()
-async def test_ascon_hash(dut : copra_stubs.AsconHash256):
+
+
+
+async def test_for_hex(dut : copra_stubs.AsconHash256, hexstring):
     logger = logging.getLogger("my_testbench")
-    logger.warning("This is an info message")
-    #dut.m_i.value = int(0x0706050403020100)
+    dut.start_i.value = 0
+    dut.reset_i.value = 1
+    
+    cocotb.start_soon(generate_clock(dut))
+    
+    await Timer(60, unit="ns")
+    
+    dut.reset_i.value = 0
+
     dut.start_i.value = 1
     dut.word_left.value = 1
 
-    cocotb.start_soon(generate_clock(dut))
-    cocotb.start_soon(generate_input(dut, "00010203040506070809"))
-    cocotb.start_soon(generate_log(dut))
+    cocotb.start_soon(generate_input(dut, hexstring))
+    #cocotb.start_soon(generate_log(dut))
 
-
-    
 
     while dut.finished_o.value != 1:
         await Timer(10, unit="ns")
@@ -125,6 +136,19 @@ async def test_ascon_hash(dut : copra_stubs.AsconHash256):
 
     await Timer(20, unit="ns")
 
+@cocotb.test()
+async def test_ascon_hash(dut : copra_stubs.AsconHash256):
+    #dut.m_i.value = int(0x0706050403020100)
+    
+
+    await test_for_hex(dut, "000102")
+    await test_for_hex(dut, "00010203")
+    await test_for_hex(dut, "0001020304")
+
+
+    await test_for_hex(dut, "0001020304050607")
+    await test_for_hex(dut, "000102030405060708")
+    await test_for_hex(dut, "00010203040506070809")
 
 
 

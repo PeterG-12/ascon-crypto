@@ -69,12 +69,18 @@ begin
                     if core_finished = '1' then
                         -- Proceed to word absorbtion
                         start_core <= '1';
+                        
 
                         core_in <= core_out;
                         core_in(319 downto 256) <= core_out(319 downto 256) xor m_i;
 
                         word_processed_o <= '1';
-                        curr_state <= absorb_message;
+
+                        if word_left = '1' then
+                            curr_state <= absorb_message;
+                        else
+                            curr_state <= squeeze_output;
+                        end if;
 
                     else
                         start_core <= '0';
