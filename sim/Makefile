@@ -15,6 +15,6 @@ TOPLEVEL = ascon_hash256
 #VHDL_SOURCES += $(PWD)/vhdl/*.vhd
 # Top-level entity name
 
-SIM_ARGS += --wave=wave.ghw
+#SIM_ARGS += --wave=wave.ghw
 # Include cocotb make rules
 include $(shell cocotb-config --makefiles)/Makefile.sim

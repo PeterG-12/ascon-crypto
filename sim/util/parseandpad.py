@@ -1,10 +1,5 @@
-# Script used for debugging parse_and_pad
-debug = True
-
 def parse_and_pad(hexstring : str):
     M = list((hexstring[0+i:16+i] for i in range(0, len(hexstring), 16)))
-
-    print(M)
 
     for i in range(0, len(M)):
         new_str = ""
@@ -17,8 +12,6 @@ def parse_and_pad(hexstring : str):
 
     byte_length = len(hexstring) // 2
     byte_length %= 8
-    # Get length in bytes of last 64-bit word
-    print(M)
 
     padded_word = ""
     if byte_length == 0:
@@ -31,8 +24,5 @@ def parse_and_pad(hexstring : str):
         for i in range(0, 8 - byte_length - 1):
             padded_word = "00" + padded_word
         M[-1] = padded_word
-
-    if debug: print(M)    
+    
     return M
-
-parse_and_pad("000102")
