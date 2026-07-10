@@ -5,13 +5,13 @@ library work;
 use work.ascon_package.ALL;
 
 entity ascon_hash256 is
-    generic(
-        ROUNDS : natural := 8 -- Rounds to perform between 1 and 16
-    );
-    port(clk_i, reset_i, start_i, word_left : in std_logic;
-        finished_o, word_processed_o : out std_logic;
-        state_o : out std_logic_vector(255 downto 0);
-        m_i : in std_logic_vector(63 downto 0)
+    port(clk_i, reset_i : in std_logic;
+        start_i : in std_logic; -- hashing start signal
+        word_left_i : in std_logic; -- Signal whether more than 1 64-bt word is left to be absorbed
+        finished_o : out std_logic; -- squeezing finished
+        word_processed_o : out std_logic; -- signal that a 64-bit word has ben absorbed
+        state_o : out std_logic_vector(255 downto 0); -- final output state
+        m_i : in std_logic_vector(63 downto 0) -- current input 64-bit word
     );
 end ascon_hash256;
 
@@ -26,6 +26,7 @@ architecture Behavioral of ascon_hash256 is
     signal core_in : std_logic_vector(319 downto 0);
     signal core_out : std_logic_vector(319 downto 0);
 
+    constant ROUNDS_TO_PERFOM : natural := 12; -- Hash256 only needs permutations with 12 rounds
     signal squeeze_counter : natural range 0 to 15 := 0;
 
     signal H_0 : std_logic_vector(63 downto 0);
@@ -39,7 +40,7 @@ architecture Behavioral of ascon_hash256 is
 
 begin
         
-    process(clk_i)
+    fsm: process(clk_i)
     begin
         if rising_edge(clk_i) then
             if reset_i = '1' then
@@ -50,122 +51,103 @@ begin
                 squeeze_counter <= 0;
                 curr_state <= idle;
             else
-                if curr_state = idle then
-                    if start_i = '1' then
-                        state_o <= (others => '0');
-                        start_core <= '1';
-                        finished_o <= '0';
-                        squeeze_counter <= 0;
-                        word_processed_o <= '0';
-                        core_in <= (others => '0');
-                        core_in(319 downto 256) <= IV_HASH;
+                start_core <= '0';
+                word_processed_o <= '0';
 
-                        curr_state <= initialization;
+                case curr_state is
+                    when idle =>
+                        if start_i = '1' then
+                            state_o <= (others => '0');
+                            start_core <= '1';
+                            finished_o <= '0';
+                            squeeze_counter <= 0;
+                            word_processed_o <= '0';
+                            core_in <= (others => '0');
+                            core_in(319 downto 256) <= IV_HASH;
 
-                    end if;
-                end if;
+                            curr_state <= initialization;
 
-                if curr_state = initialization then
-                    if core_finished = '1' then
-                        -- Proceed to word absorbtion
-                        start_core <= '1';
-                        
-
-                        core_in <= core_out;
-                        core_in(319 downto 256) <= core_out(319 downto 256) xor m_i;
-
-                        word_processed_o <= '1';
-
-                        if word_left = '1' then
-                            curr_state <= absorb_message;
-                        else
-                            curr_state <= squeeze_output;
                         end if;
 
-                    else
-                        start_core <= '0';
-                        word_processed_o <= '0';
+                    when initialization => 
+                        if core_finished = '1' then
+                            -- Proceed to word absorbtion
+                            start_core <= '1';
+                            
 
-                    end if;
-                end if;
+                            core_in <= core_out;
+                            core_in(319 downto 256) <= core_out(319 downto 256) xor m_i;
 
-                if curr_state = absorb_message then
-                    if core_finished = '1' then
-                        
-                        if word_left = '0' then
-                            -- If only 1 word left to absorb
+                            word_processed_o <= '1';
+
+                            if word_left_i = '1' then
+                                curr_state <= absorb_message;
+                            else
+                                curr_state <= squeeze_output;
+                            end if;
+
+                        else
+                            start_core <= '0';
+                            word_processed_o <= '0';
+
+                        end if;
+
+                    when absorb_message =>
+                         if core_finished = '1' then
+                            
                             start_core <= '1';
 
                             core_in <= core_out;
                             core_in(319 downto 256) <= core_out(319 downto 256) xor m_i;
                             word_processed_o <= '1';
 
-
-                            curr_state <= squeeze_output;
-                        else
-                            -- If there is more than 1 word left to absorb
-                            start_core <= '1';
-
-                            core_in <= core_out;
-                            core_in(319 downto 256) <= core_out(319 downto 256) xor m_i;
-                            word_processed_o <= '1';
-
-
+                            if word_left_i = '0' then
+                                -- If only 1 word left to absorb
+                                curr_state <= squeeze_output;
+                            else
+                                -- If there is more than 1 word left to absorb
+                                start_core <= '1';
+                            end if;
                         end if;
 
-                        
+                    when squeeze_output =>
+                        if core_finished = '1' then
+                            case squeeze_counter is
+                                when 0 =>
+                                    start_core <= '1';
+                                    H_0 <= core_out(319 downto 256);
+                                    core_in <= core_out;
 
-                    else
-                        start_core <= '0';
-                        word_processed_o <= '0';
+                                when 1 => 
+                                    start_core <= '1';
+                                    H_1 <= core_out(319 downto 256);
+                                    core_in <= core_out;
 
-                    end if;
-                end if;
+                                when 2 =>
+                                    start_core <= '1';
+                                    H_2 <= core_out(319 downto 256);
+                                    core_in <= core_out;
 
-                if curr_state = squeeze_output then
-                    
-                    if core_finished = '1' then
-                        case squeeze_counter is
-                            when 0 =>
-                                start_core <= '1';
-                                H_0 <= core_out(319 downto 256);
-                                core_in <= core_out;
-
-                            when 1 => 
-                                start_core <= '1';
-                                H_1 <= core_out(319 downto 256);
-                                core_in <= core_out;
-
-                            when 2 =>
-                                start_core <= '1';
-                                H_2 <= core_out(319 downto 256);
-                                core_in <= core_out;
-
-                            when others =>
-                                start_core <= '0';
-                                core_in <= core_out;
-                                finished_o <= '1';
-                                state_o <= invert_byte_order(H_0) & invert_byte_order(H_1) & invert_byte_order(H_2) & invert_byte_order(core_out(319 downto 256));
-                                curr_state <= idle;
-                        end case;
-                        
-
-
-                        squeeze_counter <= squeeze_counter + 1; 
-                    else
-                        start_core <= '0';
-                    end if;
-                end if;
+                                when others =>
+                                    start_core <= '0';
+                                    core_in <= core_out;
+                                    finished_o <= '1';
+                                    state_o <= invert_byte_order(H_0) & invert_byte_order(H_1) & invert_byte_order(H_2) & invert_byte_order(core_out(319 downto 256));
+                                    curr_state <= idle;
+                            end case;
+                            
+                            squeeze_counter <= squeeze_counter + 1; 
+                        end if;
+                    when others => null;
+                end case;
             end if;
         end if;
-    end process;
+    end process fsm;
 
     ascon_core_inst: entity work.ascon_core
-     generic map(
-        ROUNDS => 12
-    )
      port map(
         clk_i => clk_i,
+        rounds_i => ROUNDS_TO_PERFOM,
         reset_i => reset_i,
         start_i => start_core,
         finished_o => core_finished,

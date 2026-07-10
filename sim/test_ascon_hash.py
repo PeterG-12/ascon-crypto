@@ -2,6 +2,7 @@ from re import M
 import string
 import cocotb
 from cocotb.triggers import Timer, Edge, with_timeout
+from cocotb.clock import Clock
 from random import randint
 import logging
 from typing import TYPE_CHECKING
@@ -9,7 +10,7 @@ from util.parseandpad import parse_and_pad
 from util.parsefile import parse_file
 
 
-debug = False
+debug = True
 
 # 1. Import the stub ONLY for your IDE, hiding it from the simulator
 if TYPE_CHECKING:
@@ -30,13 +31,8 @@ def pad_zeroes(hexstring):
     return out_string
 
 async def generate_clock(dut : copra_stubs.AsconHash256):
-
-    """Generate clock pulses."""
-    for _ in range(10000):
-        dut.clk_i.value = 0
-        await Timer(5, unit="ns")
-        dut.clk_i.value = 1
-        await Timer(5, unit="ns")
+    c = Clock(dut.clk_i, 10, "ns")
+    c.start()
 
         
 
@@ -81,12 +77,12 @@ async def generate_input(dut : copra_stubs.AsconHash256, hexstring : str):
                     if debug: logger.warning("Input: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
                     i += 1
                 if i == count:
-                    dut.word_left.value = 0
+                    dut.word_left_i.value = 0
     #Exactly 1 64-bit word
     else:
         if debug: logger.warning("Input: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
         dut.m_i.value = int(M_list[i], 16)
-        dut.word_left.value = 0
+        dut.word_left_i.value = 0
 
 
 
@@ -96,15 +92,13 @@ async def test_for_hex(dut : copra_stubs.AsconHash256, hexstring, correct_result
     logger = logging.getLogger("my_testbench")
     dut.start_i.value = 0
     dut.reset_i.value = 1
-    
-    cocotb.start_soon(generate_clock(dut))
-    
+        
     await Timer(60, unit="ns")
     
     dut.reset_i.value = 0
 
     dut.start_i.value = 1
-    dut.word_left.value = 1
+    dut.word_left_i.value = 1
 
     cocotb.start_soon(generate_input(dut, hexstring))
 
@@ -131,10 +125,16 @@ async def test_ascon_hash(dut : copra_stubs.AsconHash256):
     KAT_dictionary = parse_file("LWC_HASH_KAT_128_256.txt")
 
     count = 0
+    TESTS_TO_RUN = 300 # -1 to perform all tests
+    cocotb.start_soon(generate_clock(dut))
+
     for key in KAT_dictionary.keys():
         count += 1
         await test_for_hex(dut, key, KAT_dictionary[key])
         if debug: logger.warning("Correct solution: " + KAT_dictionary[key])
+
+        if count == TESTS_TO_RUN:
+            break
         
     # Possibility for performing individual checks
 

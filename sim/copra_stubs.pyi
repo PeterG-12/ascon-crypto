@@ -23,7 +23,7 @@ class AsconHash256(cocotb.handle.HierarchyObject):
     start_core: cocotb.handle.LogicObject
     start_i: cocotb.handle.LogicObject
     state_o: cocotb.handle.LogicArrayObject
-    word_left: cocotb.handle.LogicObject
+    word_left_i: cocotb.handle.LogicObject
     word_processed_o: cocotb.handle.LogicObject
 
     @overload
@@ -36,7 +36,7 @@ class AsconHash256(cocotb.handle.HierarchyObject):
     def __getitem__(self, name: Literal['start_i']) -> cocotb.handle.LogicObject: ...
 
     @overload
-    def __getitem__(self, name: Literal['word_left']) -> cocotb.handle.LogicObject: ...
+    def __getitem__(self, name: Literal['word_left_i']) -> cocotb.handle.LogicObject: ...
 
     @overload
     def __getitem__(self, name: Literal['finished_o']) -> cocotb.handle.LogicObject: ...
@@ -96,6 +96,8 @@ class AsconCoreInst(cocotb.handle.HierarchyObject):
     nonlinear_substition: cocotb.handle.LogicArrayObject
     reset_i: cocotb.handle.LogicObject
     round_counter: cocotb.handle.LogicArrayObject
+    rounds_i: cocotb.handle.LogicArrayObject
+    rounds_to_perform: cocotb.handle.LogicArrayObject
     start_i: cocotb.handle.LogicObject
     state_i: cocotb.handle.LogicArrayObject
     state_o: cocotb.handle.LogicArrayObject
@@ -116,6 +118,9 @@ class AsconCoreInst(cocotb.handle.HierarchyObject):
     def __getitem__(self, name: Literal['state_i']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
+    def __getitem__(self, name: Literal['rounds_i']) -> cocotb.handle.LogicArrayObject: ...
+
+    @overload
     def __getitem__(self, name: Literal['state_o']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
@@ -126,6 +131,9 @@ class AsconCoreInst(cocotb.handle.HierarchyObject):
 
     @overload
     def __getitem__(self, name: Literal['round_counter']) -> cocotb.handle.LogicArrayObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['rounds_to_perform']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
     def __getitem__(self, name: Literal['constant_addition']) -> cocotb.handle.LogicArrayObject: ...
