@@ -1,5 +1,7 @@
-def parse_and_pad(hexstring : str):
-    M = list((hexstring[0+i:16+i] for i in range(0, len(hexstring), 16)))
+def parse_and_pad(hexstring : str, out_bytes = 8):
+    
+
+    M = [hexstring[0+i:2*out_bytes+i] for i in range(0, len(hexstring), 2*out_bytes)]
 
     for i in range(0, len(M)):
         new_str = ""
@@ -11,9 +13,11 @@ def parse_and_pad(hexstring : str):
         M[i] = new_str
 
     byte_length = len(hexstring) // 2
-    byte_length %= 8
+    byte_length %= out_bytes
 
     padded_word = ""
+    word_len = out_bytes - byte_length
+
     if byte_length == 0:
         padded_word = "0000000000000001"
         M.append(padded_word)
@@ -21,8 +25,68 @@ def parse_and_pad(hexstring : str):
         last = M[-1] # the last, incomplete word
         padded_word = last
         padded_word = "01" + padded_word
-        for i in range(0, 8 - byte_length - 1):
+        for i in range(0, out_bytes - byte_length - 1):
             padded_word = "00" + padded_word
         M[-1] = padded_word
     
-    return M
+    return (M, word_len)
+
+def parse(hexstring: str, r_bytes: int) -> tuple:
+
+    r_bytes = 2 * r_bytes #Considering nibbles
+
+    l = len(hexstring) // r_bytes
+    
+    blocks = []
+    
+    for i in range(l):
+        block = hexstring[i * r_bytes : (i + 1) * r_bytes]
+        blocks.append(block)
+        
+    final_block = hexstring[l * r_bytes : len(hexstring)]
+    blocks.append(final_block)
+    
+    return blocks, len(final_block) * 4
+
+
+
+
+
+def pad(hexstring: str, r_bytes: int) -> str:
+    leading_zeroes = 0
+    for c in hexstring:
+        if c == '0':
+            leading_zeroes += 1
+        else:
+            break
+    
+    if leading_zeroes % 2 == 0:
+        hexstring = hexstring[leading_zeroes:]
+    else:
+        hexstring = hexstring[leading_zeroes-1:]
+
+
+    print("Before pad: ", hexstring)
+    
+    data_bytes = bytes.fromhex(hexstring)
+
+    pad_len = r_bytes - (len(data_bytes) % r_bytes)
+
+    a_padding =  b'\x01' + (b'\x00' * (pad_len - 1)) 
+    a_padded =  data_bytes + a_padding
+    
+    result = a_padded.hex()
+
+    print("After pad: ", result)
+    return result
+
+
+def split320(l):
+
+        out_str = l[0:16] + "  " + l[16: 32] + "  " + l[32: 48] + "  " + l[48 : 64] + "  " + l[64:80]
+        return out_str
+
+
+x = parse("000102030405060708090A0B0C0D0E0F101112131415161718", 16)
+print(x)
+print(pad(x[0][1], 16))

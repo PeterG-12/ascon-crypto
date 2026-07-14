@@ -11,103 +11,140 @@ entity ascon_aed is
         plaintext_word_left_i : in std_logic; -- Signal whether at least 1 128-bt word of plaintext is left to be absorbed
         finished_o : out std_logic; -- squeezing finished
         error_o : out std_logic; -- indicates error
+        c_ready_o : out std_logic; -- ciphertext block ready
         word_processed_o : out std_logic; -- signal that a 64-bit word has ben absorbed
-        state_o : out std_logic_vector(255 downto 0); -- final output state
+        --state_o : out std_logic_vector(255 downto 0); -- final output state
         k_i : in std_logic_vector(127 downto 0); -- Secret key
         n_i : in std_logic_vector(127 downto 0); -- Nonce
         a_i : in std_logic_vector(127 downto 0); -- current AD input 128-bit word
         p_i : in std_logic_vector(127 downto 0); -- current Plaintext input 128-bit word
         c_o : out std_logic_vector(127 downto 0); -- current output 128-bit word
+        t_o : out std_logic_vector(127 downto 0); -- authenticaction tag 128-bit word
         p_len_i : in natural -- length of plaintext word used at last stage must be greater than 1
     );
 end ascon_aed;
 
 architecture Behavioral of ascon_aed is
-    type state_type is (idle, initialization, associated_data, plaintext, finalization);
+    type state_type is (idle, initialization, associated_data, plaintext, finished, finalization);
 
     signal start_core : std_logic := '0';
     signal core_finished : std_logic := '0';
     signal key : std_logic_vector(127 downto 0) := (others => '0');
 
     signal core_in : std_logic_vector(319 downto 0) := (others => '0');
-    signal core_out : std_logic_vector(319 downto 0);
+    signal core_out : std_logic_vector(319 downto 0) := (others => '0');
     signal core_rounds : natural := 12;
 
     signal curr_state : state_type := idle;
+    
+    
+    
+    signal p_intermed_debug : natural;
+    signal debug_clock : natural range 0 to 10_000_000 := 0;
+
 
 begin
+    p_intermed_debug <= p_len_i;
+    
 
     fsm : process(clk_i, reset_i)
     begin
         if rising_edge(clk_i) then
+            debug_clock <= debug_clock + 1;
             if reset_i = '1' then
                 error_o <= '0';
                 curr_state <= idle;
                 key <= (others => '0');
                 core_in <= (others => '0');
+                c_o <= (others => '0');
+                c_ready_o <= '0';
                 core_rounds <= 12;
             else
                 start_core <= '0';
                 error_o <= '0';
+                word_processed_o <= '0';
+                c_ready_o <= '0';
 
                 case curr_state is
                     when idle => 
-                        key <= (others => '0');
-                        core_in <= (others => '0');
+                        c_o <= (others => '0');
                         core_rounds <= 12;
                         finished_o <= '0';
-
                         if start_i = '1' then
                             start_core <= '1';
-                            core_in <= n_i & k_i & IV_AEAD;
+
+                            core_in <= IV_AEAD & k_i & n_i;
                             key <= k_i;
                             curr_state <= initialization;
                         end if;
 
                     when initialization =>
                         if core_finished = '1' then
+                            core_in <= core_out;
+                            
+                            word_processed_o <= '1';
                             start_core <= '1';
                             core_rounds <= 8;
-                            core_in(191 downto 0) <= core_out(191 downto 0) xor (key & x"00000000000000");
+
+                            core_in(191 downto 0) <= core_out(191 downto 0) xor (x"0000000000000000" & key);
 
                             if associated_data_word_left_i = '1' then
                                 core_in(319 downto 192) <= core_out(319 downto 192) xor a_i;
                                 curr_state <= associated_data;
                             else
                                 core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
-                                core_in(191 downto 0) <= core_out(191 downto 1) & core_out(0) xor '1';
+                                core_in(63) <= core_out(63) xor '1';
                                 curr_state <= plaintext;
                             end if;
                         end if;
 
                     when associated_data => 
                         if core_finished = '1' then
+                            core_in <= core_out;
+
                             start_core <= '1';
+                            word_processed_o <= '1';
                             core_rounds <= 8;
+
                             if associated_data_word_left_i = '1' then
                                 core_in(319 downto 192) <= core_out(319 downto 192) xor a_i;
                             else
+                                c_o <= core_out(319 downto 192) xor p_i;
+                                c_ready_o <= '1';
                                 core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
-                                core_in(191 downto 0) <= core_out(191 downto 1) & core_out(0) xor '1';
+                                core_in(63) <= core_out(63) xor '1';
                                 curr_state <= plaintext;
                             end if;
                         end if;
 
                     when plaintext =>
                         if core_finished = '1' then
-                            c_o <= core_out(319 downto 192);
+                            core_in <= core_out;
+                            c_o <= core_out(319 downto 192) xor p_i;
+                            c_ready_o <= '1';
+
                             start_core <= '1';
+                            word_processed_o <= '1';
                             core_rounds <= 8;
+
                             if plaintext_word_left_i = '1' then
-                                core_in <= core_out;
                                 core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
                             else
-                                if p_len_i > 0 then
-                                    core_in(319 downto 320 - p_len_i) <= core_out(319 downto 320 - p_len_i) xor p_i(127 downto 128 - p_len_i);
-                                    core_in(320 - p_len_i - 1 downto 192) <= core_in(320 - p_len_i - 1 downto 192) xor ('1' & (others => '0'));
-                                    core_in(191 downto 0) <= core_out(191 downto 0) xor (key & x"00000000000000");
+                                if p_intermed_debug > 0 then
+
+                                    --core_in(319 downto 320 - p_intermed_debug) <= core_out(319 downto 320 - p_intermed_debug) xor p_i(p_intermed_debug - 1 downto 0);
+                                    --c_o <= (others => '0');
+                                    --c_o(p_intermed_debug - 1 downto 0) <= core_out(319 downto 320 - p_intermed_debug) xor p_i(p_intermed_debug - 1 downto 0);
+                                    core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
+                                    c_o <= core_out(319 downto 192) xor p_i;
+
+                                    --core_in(320 - p_intermed_debug - 1) <= core_out(320 - p_intermed_debug- 1) xor '1';
+
+                                    core_in(191 downto 64) <= core_out(191 downto 64) xor key;
                                     core_rounds <= 12;
                                     curr_state <= finalization;
+
+                                    
                                 else
                                     error_o <= '1';
                                 end if;
@@ -116,12 +153,15 @@ begin
 
                     when finalization =>
                         if core_finished = '1' then
-                            c_o <= core_out(319 downto 192);
-                            t_o <= core_out(191 downto 0) xor key;
+                            t_o <= core_out(127 downto 0) xor key;
                             key <= (others => '0'); -- Erasing the key as soon as possible
-                            finished_o <= '1';
-                            curr_state <= idle;
+                            
+                            curr_state <= finished;
                         end if;
+
+                    when finished =>
+                        finished_o <= '1';
+                        curr_state <= idle;
 
 
                     when others => null;

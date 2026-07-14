@@ -8,7 +8,8 @@ import logging
 from typing import TYPE_CHECKING
 from util.parseandpad import parse_and_pad
 from util.parsefile import parse_file
-
+from util.general import pad_zeroes
+from util.simuutil import generate_clock, generate_state_log
 
 debug = True
 
@@ -16,56 +17,17 @@ debug = True
 if TYPE_CHECKING:
     import copra_stubs
 
-def split(hexstring):
-    hexstring = hexstring[2:]
-    out_str = hexstring[0:16] + "  " + hexstring[16: 32] + "  " + hexstring[32: 48] + "  " + hexstring[48 : 64] + "  " + hexstring[64:80]
-    return out_str
-
-def pad_zeroes(hexstring):
-    length = len(hexstring)
-    out_string = hexstring
-    while length < 64:
-        out_string = "0" + out_string
-        length += 1
-        
-    return out_string
-
-async def generate_clock(dut : copra_stubs.AsconHash256):
-    c = Clock(dut.clk_i, 10, "ns")
-    c.start()
-
-        
-
-async def generate_log(dut : copra_stubs.AsconHash256):
-    logger = logging.getLogger("my_testbench")
-    if debug: logger.warning("This is an info message")
-
-    curr_state = dut.curr_state.value
-
-    while dut.finished_o.value != 1:
-        await dut.clk_i.rising_edge
-
-        if curr_state != dut.curr_state.value:
-            curr_state = dut.curr_state.value
-            if debug: logger.warning("STATE CHANGED!")
-
-
-        if dut.start_core.value == 1:
-            if debug: logger.warning("Starting core with: %s" % split(hex(dut.core_in.value)))
-
-        if dut.core_finished.value == 1:
-            if debug: logger.warning("Core finished with: %s" % split(hex(dut.core_out.value)))
-
 async def generate_input(dut : copra_stubs.AsconHash256, hexstring : str):
     logger = logging.getLogger("my_testbench")
-    M_list = parse_and_pad(hexstring)
+    Mtup : tuple = parse_and_pad(hexstring)
+    M_list = Mtup[0]
     count = len(M_list)
     i = 0
 
     # More than 1 64-bit word total
     if count > 1:
         dut.m_i.value = int(M_list[i], 16)
-        if debug: logger.warning("INPUT: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
+        if debug: logger.warning("Input: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
         i += 1
 
         while dut.finished_o.value != 1:
@@ -83,10 +45,6 @@ async def generate_input(dut : copra_stubs.AsconHash256, hexstring : str):
         if debug: logger.warning("Input: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
         dut.m_i.value = int(M_list[i], 16)
         dut.word_left_i.value = 0
-
-
-
-
 
 async def test_for_hex(dut : copra_stubs.AsconHash256, hexstring, correct_result):
     logger = logging.getLogger("my_testbench")

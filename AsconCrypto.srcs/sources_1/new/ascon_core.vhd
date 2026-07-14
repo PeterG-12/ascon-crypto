@@ -46,6 +46,7 @@ begin
             else
                 case curr_state is
                     when idle => 
+                        state_o <= (others => '0');
                         finished_o <= '0';
                         if start_i = '1' then
                             internal_state <= state_i; -- Load the starting state
@@ -58,6 +59,8 @@ begin
                         if round_counter = rounds_to_perform then
                             round_counter <= 0;
                             finished_o <= '1';
+                            
+
                             state_o <= internal_state;
                             curr_state <= finished;
                         else
@@ -78,6 +81,8 @@ begin
 
     -- Three stage ASCON permutation
     constant_addition <= internal_state(319 downto 192) & (internal_state(191 downto 128) xor TABLE5((16 - rounds_to_perform + round_counter))) & internal_state(127 downto 0) 
+
+
     when (16 - rounds_to_perform + round_counter) < 16 
     else (others => '0');
 
