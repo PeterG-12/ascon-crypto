@@ -45,7 +45,6 @@ def parse(hexstring: str, r_bytes: int) -> tuple:
         
     final_block = hexstring[l * r_bytes : len(hexstring)]
     blocks.append(final_block)
-    
     return blocks, len(final_block) * 4
 
 
@@ -60,14 +59,14 @@ def pad(hexstring: str, r_bytes: int) -> str:
         else:
             break
     
-    if leading_zeroes % 2 == 0:
-        hexstring = hexstring[leading_zeroes:]
-    else:
-        hexstring = hexstring[leading_zeroes-1:]
+
+    if False:
+        if leading_zeroes % 2 == 0:
+            hexstring = hexstring[leading_zeroes:]
+        else:
+            hexstring = hexstring[leading_zeroes-1:]
 
 
-    print("Before pad: ", hexstring)
-    
     data_bytes = bytes.fromhex(hexstring)
 
     pad_len = r_bytes - (len(data_bytes) % r_bytes)
@@ -77,12 +76,12 @@ def pad(hexstring: str, r_bytes: int) -> str:
     
     result = a_padded.hex()
 
-    print("After pad: ", result)
     return result
 
 
 def split320(l):
-
+        if len(l) % 2 == 1:
+            l = "0" + l
         out_str = l[0:16] + "  " + l[16: 32] + "  " + l[32: 48] + "  " + l[48 : 64] + "  " + l[64:80]
         return out_str
 

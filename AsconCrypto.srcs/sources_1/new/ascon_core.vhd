@@ -29,10 +29,8 @@ architecture Behavioral of ascon_core is
     signal nonlinear_substition : std_logic_vector(319 downto 0);
     signal linear_diffusion : std_logic_vector(319 downto 0);
 
-
 begin
     
-
     process(clk_i)
     begin
         if rising_edge(clk_i) then

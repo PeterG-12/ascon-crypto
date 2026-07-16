@@ -1,3 +1,5 @@
+export PYTHONPATH := $(PWD)/..:$(PYTHONPATH)
+
 # Simulator settings
 SIM ?= ghdl
 TOPLEVEL_LANG ?= vhdl

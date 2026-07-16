@@ -91,10 +91,32 @@ begin
                             if associated_data_word_left_i = '1' then
                                 core_in(319 downto 192) <= core_out(319 downto 192) xor a_i;
                                 curr_state <= associated_data;
+                                
+                            elsif plaintext_word_left_i = '1' then
+                                core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
+                                c_o <= core_out(319 downto 192) xor p_i;
+                                c_ready_o <= '1';
+
+                                core_in(191 downto 128) <= core_out(191 downto 128);
+                                core_in(127 downto 64) <= core_out(127 downto 64) xor (key(127 downto 64));
+                                core_in(63) <= core_out(63) xor '1' xor key(63);
+                                curr_state <= plaintext;
+
                             else
                                 core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
-                                core_in(63) <= core_out(63) xor '1';
-                                curr_state <= plaintext;
+                                c_o <= core_out(319 downto 192) xor p_i;
+                                c_ready_o <= '1';
+
+                                core_in(191 downto 128) <= core_out(191 downto 128) xor key(127 downto 64);
+                                core_in(127 downto 64) <= core_out(127 downto 64) xor key(127 downto 64) xor key(63 downto 0);
+                                core_in(63 downto 0) <= core_out(63 downto 0) xor key(63 downto 0);
+                                core_in(63) <= core_out(63) xor '1' xor key(63);
+
+                                
+
+
+                                core_rounds <= 12;
+                                curr_state <= finalization;
                             end if;
                         end if;
 
@@ -108,12 +130,22 @@ begin
 
                             if associated_data_word_left_i = '1' then
                                 core_in(319 downto 192) <= core_out(319 downto 192) xor a_i;
-                            else
+                            elsif plaintext_word_left_i = '1' then
                                 c_o <= core_out(319 downto 192) xor p_i;
                                 c_ready_o <= '1';
                                 core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
                                 core_in(63) <= core_out(63) xor '1';
                                 curr_state <= plaintext;
+                            else
+                                c_o <= core_out(319 downto 192) xor p_i;
+                                c_ready_o <= '1';
+                                
+                                core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
+                                core_in(63) <= core_out(63) xor '1';
+
+                                core_in(191 downto 64) <= core_out(191 downto 64) xor key;
+                                core_rounds <= 12;
+                                curr_state <= finalization;
                             end if;
                         end if;
 
@@ -144,9 +176,12 @@ begin
                                     core_rounds <= 12;
                                     curr_state <= finalization;
 
-                                    
                                 else
-                                    error_o <= '1';
+                                    core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
+                                    core_in(191 downto 64) <= core_out(191 downto 64) xor key;
+
+                                    core_rounds <= 12;
+                                    curr_state <= finalization;
                                 end if;
                             end if;
                         end if;
