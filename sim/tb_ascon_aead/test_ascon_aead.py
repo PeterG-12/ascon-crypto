@@ -2,7 +2,7 @@ from re import M
 from sre_compile import AT
 import string
 import cocotb
-from cocotb.triggers import Timer, Edge, with_timeout
+from cocotb.triggers import Timer, Edge, with_timeout, First
 from cocotb.clock import Clock
 from random import randint
 import logging
@@ -16,18 +16,47 @@ debugValue = False
 debug = False
 debugPerm = False
 
+
+
+outp = ""
+plen = 0
+
 # 1. Import the stub ONLY for your IDE, hiding it from the simulator
 if TYPE_CHECKING:
     import copra_stubs
 
+def input_lists(assoc_data : str, text : str):
+    text_tuple = parse(text, 16)
+    text_list = text_tuple[0]
+    text_list[-1] = pad(text_list[-1], 16)
+    for i in range(0, len(text_list)):
+        text_list[i] = invert_bytes_per_word(text_list[i])
+    last_word_len = text_tuple[1]
 
 
+    ad_tuple = parse(assoc_data, 16)
+    assoc_data_list = ad_tuple[0]
 
-def set_val(val):
-    #print("SETTING TO %s" % val)
-    return val
+
+    if len(assoc_data_list) > 0:
+        assoc_data_list[-1] = pad(assoc_data_list[-1], 16)
+    for i in range(0, len(assoc_data_list)):
+        assoc_data_list[i] = invert_bytes_per_word(assoc_data_list[i])
+
+    count_assoc_data = 0
+    count_text = 0
+
+    if assoc_data != "":
+        count_assoc_data = len(assoc_data_list)
+    if text != "":
+        count_text = len(text_list)
+
+    return text_list, assoc_data_list, count_text, count_assoc_data, last_word_len
+
+
 
 async def generate_input(dut : copra_stubs.AsconAed, key, nonce, pt, ad):
+    global plen
     logger = cocotb.log
     logger.setLevel(logging.INFO)
 
@@ -37,141 +66,81 @@ async def generate_input(dut : copra_stubs.AsconAed, key, nonce, pt, ad):
     if debugValue: logger.info("Ad: " + ad)
 
 
-    count_a = 0
-    count_p = 0
-    i_a = 0
-    i_p = 0
-
-    #key = "000102030405060708090A0B0C0D0E0F"
-    #nonce = "000102030405060708090A0B0C0D0E0F"
-    #pt = "000102030405060708090A0B0C0D0E0F101112131415161718"
-    #ad = "000102030405060708090A0B0C0D0E0F10111213141516171819"
-
+    i_associated_data = 0
+    i_text = 0
 
     key = invert_bytes_per_word(key)
     nonce = invert_bytes_per_word(nonce)
-    
+
     dut.k_i.value = int(key, 16)
     dut.n_i.value = int(nonce, 16)
 
+    text_list, assoc_data_list, count_text, count_assoc_data, p_last_word_len = input_lists(ad, pt)
 
+    dut.plaintext_word_left_i.value = 1
+    plen = 128
 
-    
-        
-    p_last_word_len = 128
-    Ptup = parse(pt, 16)
-    P_list = Ptup[0]
-    P_list[-1] = pad(P_list[-1], 16)
-    for i in range(0, len(P_list)):
-        P_list[i] = invert_bytes_per_word(P_list[i])
-    p_last_word_len = Ptup[1]
+    if debug: logger.info(f"Associated data: {assoc_data_list}")
+    if debug: logger.info(f"Plaintext data: {text_list}")
 
-    Atup = parse(ad, 16)
-    A_list = Atup[0]
-    #print("Alist: ", A_list)
-
-    if len(A_list) > 0:
-        A_list[-1] = pad(A_list[-1], 16)
-    for i in range(0, len(A_list)):
-        A_list[i] = invert_bytes_per_word(A_list[i])
-    #print("Alist 2: ", A_list)
-
-
-
-
-    if ad != "":
-        count_a = len(A_list)
-    if pt != "":
-        count_p = len(P_list)
-    
-
-    dut.plaintext_word_left_i.value = set_val(1)
-    i_p = 0
-    dut.p_len_i.value = 128
-
-
-    if debug: logger.info(f"Associated data: {A_list}")
-    if debug: logger.info(f"Plaintext data: {P_list}")
-
-    if count_a == 0:
+    if count_assoc_data == 0:
         dut.associated_data_word_left_i.value = 0
-        dut.p_i.value = int(P_list[0], 16)
+        dut.p_i.value = int(text_list[0], 16)
     else:
         dut.associated_data_word_left_i.value = 1
-        dut.a_i.value = int(A_list[0], 16)
-        if debug: logger.info("Associated data input: " + A_list[i_a])
+        dut.a_i.value = int(assoc_data_list[0], 16)
+        if debug: logger.info("Associated data input: " + assoc_data_list[i_associated_data])
 
-    if count_p == 0:
-        dut.p_len_i.value = p_last_word_len
-        dut.plaintext_word_left_i.value = set_val(0)
-        dut.p_i.value = int(P_list[0], 16)
-        
+    if count_text <= 1:
+        plen = p_last_word_len
+        dut.p_i.value = int(text_list[0], 16)
+        dut.plaintext_word_left_i.value = 0
 
-    if count_p == 1:
-        dut.p_i.value = int(P_list[0], 16)
-        dut.p_len_i.value = p_last_word_len
-        dut.plaintext_word_left_i.value = set_val(0)
+    #logger.warning(f"plen: {plen}   lastwordlen {p_last_word_len}")
 
     await dut.start_i.rising_edge
 
     
-
-
     while dut.finished_o.value != 1:
         await dut.core_finished.rising_edge
-        if debug: logger.info(f"Count_a: {count_a} i_a: {i_a}  Count_p: {count_p} i_p: {i_p} ")
+        dut.p_len_i.value = plen
+        if debug: logger.info(f"Count_a: {count_assoc_data} i_a: {i_associated_data}  Count_p: {count_text} i_p: {i_text} ")
 
         # More than 1 64-bit word total
-        if count_a > 0 and i_a < count_a:
+        if count_assoc_data > 0 and i_associated_data < count_assoc_data:
             dut.associated_data_word_left_i.value = 1
-            dut.plaintext_word_left_i.value = set_val(1)
-            dut.a_i.value = int(A_list[i_a], 16)
-            if debug: logger.info("Associated data input: " + A_list[i_a])
-            if debug: logger.info("BRANCH 1 TAKEN ")
-
-            i_a += 1
-
-        elif count_p >= 0 and i_p < count_p:
-            if i_p == count_p - 1:
-                if debug: logger.info("BRANCH 2 TAKEN ")
-
-                if debug: logger.info("LASTLEN input: " + str(p_last_word_len))
-                dut.p_len_i.value = p_last_word_len
-                dut.plaintext_word_left_i.value = set_val(0)
-                if debug: logger.info("Plaintext input: " + P_list[i_p] + "Last: " + str(dut.plaintext_word_left_i.value) + "  " + str(i_p) + "  " + str(count_p))
+            dut.plaintext_word_left_i.value = 1
+            dut.a_i.value = int(assoc_data_list[i_associated_data], 16)
+            i_associated_data += 1
+   
+        elif i_text < count_text:
+            if i_text == count_text - 1:
+                plen = p_last_word_len
+                dut.p_len_i.value = plen
+                dut.plaintext_word_left_i.value = 0
             else:
-                if debug: logger.info("BRANCH 3 TAKEN ")
+                dut.plaintext_word_left_i.value = 1
 
-                dut.plaintext_word_left_i.value = set_val(1)
-
-            if debug: logger.info("BRANCH 4* TAKEN ")
-
-            dut.associated_data_word_left_i.value = 0
-            dut.p_i.value = int(P_list[i_p], 16)
-            if debug: logger.info("Plaintext input: " + P_list[i_p])
             
-            i_p += 1
-
-        else:
-            if debug: logger.info("BRANCH 5 TAKEN ")
-
             dut.associated_data_word_left_i.value = 0
-            dut.plaintext_word_left_i.value = set_val(0)
-
-
+            dut.p_i.value = int(text_list[i_text], 16)
+            i_text += 1
+        else:
+            dut.associated_data_word_left_i.value = 0
+            dut.plaintext_word_left_i.value = 0
         await dut.clk_i.rising_edge
 
-outp = ""
 async def log_core_output(dut : copra_stubs.AsconAed):
     global outp
+    global plen
     logger = cocotb.log
     logger.setLevel(logging.INFO)
     if debug: logger.info("Output: started")
     
     while dut.finished_o.value != 1:
         await dut.c_ready_o.rising_edge
-        output = invert_bytes_per_word(hex(dut.c_o.value)[2:])[0:(int(dut.p_len_i.value) // 4)]
-        if debug: logger.info("Output: " + "   " + output + "  " + str(dut.p_len_i.value))
+        output = invert_bytes_per_word(hex(dut.c_o.value)[2:])[0:(int(plen) // 4)]
+        if debug: logger.info("Output: " + "   " + output + "  " + str(plen))
         outp += invert_bytes_per_word(output)
 
 
@@ -190,13 +159,12 @@ async def log_core(dut : copra_stubs.AsconAed):
     while dut.finished_o.value != 1:
         await dut.clk_i.rising_edge
 
-        if dut.ascon_core_inst.curr_state.value == "00000001":
-            try:
-                if debugPerm: logger.info("Const: " + "   " + split320(hex(dut.ascon_core_inst.constant_addition.value)[2:]))
-                if debugPerm: logger.info("Nonlinear: " + "   " + split320(hex(dut.ascon_core_inst.nonlinear_substition.value)[2:]))
-                if debugPerm: logger.info("Linear: " + "   " + split320(hex(dut.ascon_core_inst.linear_diffusion.value)[2:]))
-            except:
-                pass
+        try:
+            if debugPerm: logger.info("Const: " + "   " + split320(hex(dut.ascon_core_inst.constant_addition.value)[2:]))
+            if debugPerm: logger.info("Nonlinear: " + "   " + split320(hex(dut.ascon_core_inst.nonlinear_substition.value)[2:]))
+            if debugPerm: logger.info("Linear: " + "   " + split320(hex(dut.ascon_core_inst.linear_diffusion.value)[2:]))
+        except:
+            pass
 
 
 
@@ -208,6 +176,7 @@ async def log_core_input(dut : copra_stubs.AsconAed):
         await dut.start_core.rising_edge
         #if debug: logger.info("Core input: " + "   " + split(pad_zeroes(hex(dut.core_in.value))))
         if debug: logger.info("Core input: " + "   " + split(pad_zeroes(hex(dut.core_in.value)[2:], 80)))
+        if debug: logger.info("Plen " + "   " + str(plen))
         if debug: logger.info("Debug clock at: " + str(int(str(dut.debug_clock.value), 2)))
 
 
@@ -224,7 +193,8 @@ async def test_for_hex(dut : copra_stubs.AsconAed, key, nonce, pt, ad, ciphertex
     logger = cocotb.log
     logger.setLevel(logging.INFO)
 
-   
+    outp = ""
+    dut.encrypt_mode_i.value = 1
     dut.start_i.value = 0
     dut.reset_i.value = 1
         
@@ -234,7 +204,7 @@ async def test_for_hex(dut : copra_stubs.AsconAed, key, nonce, pt, ad, ciphertex
 
     dut.start_i.value = 1
 
-    cocotb.start_soon(generate_input(dut, key, nonce, pt, ad))
+    encryption_task = cocotb.start_soon(generate_input(dut, key, nonce, pt, ad))
 
     await Timer(60, unit="ns")
     dut.start_i.value = 0
@@ -245,9 +215,6 @@ async def test_for_hex(dut : copra_stubs.AsconAed, key, nonce, pt, ad, ciphertex
     while dut.finished_o.value != 1:
         await Timer(10, unit="ns")
     correct_result = ciphertext.lower()
-
-    #if debug: logger.info(f"Finished with: {output} :  {tag}")
-
 
     output = invert_bytes_per_word(outp)
 
@@ -261,13 +228,61 @@ async def test_for_hex(dut : copra_stubs.AsconAed, key, nonce, pt, ad, ciphertex
     if debug: logger.info("Finished with: %s" % actual_result)
     if debug: logger.info("Correct solution: " + correct_result)
 
-    assert actual_result == correct_result
+    assert actual_result == correct_result, "Encryption incorrect"
     
     #if debug: logger.info("Finished with: %s" % output)
     #if debug: logger.info("Tag: " + tag)
 
+    #return
+
+    if debug: logger.warning(f"Finished encryption test starting decryption")
+    encryption_task.kill()
+    #cocotb.start_soon(log_core_output(dut))
+    #cocotb.start_soon(log_core(dut))
+    #cocotb.start_soon(log_core_input(dut))
+
+
     outp = ""
+
+    dut.start_i.value = 0
+    dut.reset_i.value = 1
+    dut.encrypt_mode_i.value = 0
+    
+    await Timer(60, unit="ns")
+    
+    dut.reset_i.value = 0
+
+
+    text = ciphertext[:-32]
+    correct_tag = ciphertext[-32:]
+
+    if debug: logger.info(f"Text {ciphertext}   {text}")
+
+    decryption_task = cocotb.start_soon(generate_input(dut, key, nonce, text, ad))
+    dut.start_i.value = 1
+
+    while dut.finished_o.value != 1:
+        await Timer(10, unit="ns")
+
+    dut.start_i.value = 0
+
+    logger.info(f"ct: {ciphertext}")
+    
+    correct_result = ciphertext.lower()
+
+    #if debug: logger.info(f"Finished with: {output} :  {tag}")
+
+
+    output = invert_bytes_per_word(outp)
+
+    raw_tag_hex = hex(dut.t_o.value)[2:].zfill(32)
+    tag = invert_bytes_per_word(raw_tag_hex)
+
+    assert tag == correct_tag, "Incorrect tag!"
+    assert output == pt, "Incorrect plaintext"
+
     await Timer(20, unit="ns")
+    decryption_task.kill()
     return
 
 @cocotb.test()
@@ -275,7 +290,7 @@ async def test_ascon_aead(dut : copra_stubs.AsconAed):
     global outp
     logger = cocotb.log
     logger.setLevel(logging.INFO)
-    
+    dut.encrypt_mode_i.value = 1
     cocotb.start_soon(generate_clock(dut))
     cocotb.start_soon(log_core_output(dut))
     cocotb.start_soon(log_core(dut))

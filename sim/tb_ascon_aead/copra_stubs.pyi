@@ -19,13 +19,13 @@ class AsconAed(cocotb.handle.HierarchyObject):
     core_rounds: cocotb.handle.LogicArrayObject
     curr_state: cocotb.handle.LogicArrayObject
     debug_clock: cocotb.handle.LogicArrayObject
+    encrypt_mode_i: cocotb.handle.LogicObject
     error_o: cocotb.handle.LogicObject
     finished_o: cocotb.handle.LogicObject
     k_i: cocotb.handle.LogicArrayObject
     key: cocotb.handle.LogicArrayObject
     n_i: cocotb.handle.LogicArrayObject
     p_i: cocotb.handle.LogicArrayObject
-    p_intermed_debug: cocotb.handle.LogicArrayObject
     p_len_i: cocotb.handle.LogicArrayObject
     plaintext_word_left_i: cocotb.handle.LogicObject
     reset_i: cocotb.handle.LogicObject
@@ -60,6 +60,9 @@ class AsconAed(cocotb.handle.HierarchyObject):
 
     @overload
     def __getitem__(self, name: Literal['word_processed_o']) -> cocotb.handle.LogicObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['encrypt_mode_i']) -> cocotb.handle.LogicObject: ...
 
     @overload
     def __getitem__(self, name: Literal['k_i']) -> cocotb.handle.LogicArrayObject: ...
@@ -102,9 +105,6 @@ class AsconAed(cocotb.handle.HierarchyObject):
 
     @overload
     def __getitem__(self, name: Literal['curr_state']) -> cocotb.handle.LogicArrayObject: ...
-
-    @overload
-    def __getitem__(self, name: Literal['p_intermed_debug']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
     def __getitem__(self, name: Literal['debug_clock']) -> cocotb.handle.LogicArrayObject: ...

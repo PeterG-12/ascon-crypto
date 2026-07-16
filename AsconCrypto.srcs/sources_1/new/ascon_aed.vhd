@@ -14,6 +14,7 @@ entity ascon_aed is
         c_ready_o : out std_logic; -- ciphertext block ready
         word_processed_o : out std_logic; -- signal that a 64-bit word has ben absorbed
         --state_o : out std_logic_vector(255 downto 0); -- final output state
+        encrypt_mode_i : in std_logic; -- '1' for encrypt '0' for decrypt
         k_i : in std_logic_vector(127 downto 0); -- Secret key
         n_i : in std_logic_vector(127 downto 0); -- Nonce
         a_i : in std_logic_vector(127 downto 0); -- current AD input 128-bit word
@@ -37,14 +38,10 @@ architecture Behavioral of ascon_aed is
 
     signal curr_state : state_type := idle;
     
-    
-    
-    signal p_intermed_debug : natural;
     signal debug_clock : natural range 0 to 10_000_000 := 0;
 
 
 begin
-    p_intermed_debug <= p_len_i;
     
 
     fsm : process(clk_i, reset_i)
@@ -59,6 +56,8 @@ begin
                 c_o <= (others => '0');
                 c_ready_o <= '0';
                 core_rounds <= 12;
+                finished_o <= '0';
+                start_core <= '0';
             else
                 start_core <= '0';
                 error_o <= '0';
@@ -93,27 +92,49 @@ begin
                                 curr_state <= associated_data;
                                 
                             elsif plaintext_word_left_i = '1' then
-                                core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
-                                c_o <= core_out(319 downto 192) xor p_i;
-                                c_ready_o <= '1';
+                                if encrypt_mode_i = '1' then
+                                    core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
+                                    c_o <= core_out(319 downto 192) xor p_i;
+                                else
+                                    core_in(319 downto 192) <= p_i;
+                                    c_o <= core_out(319 downto 192) xor p_i;
+                                end if;
 
+                                c_ready_o <= '1';
                                 core_in(191 downto 128) <= core_out(191 downto 128);
                                 core_in(127 downto 64) <= core_out(127 downto 64) xor (key(127 downto 64));
                                 core_in(63) <= core_out(63) xor '1' xor key(63);
                                 curr_state <= plaintext;
 
                             else
-                                core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
-                                c_o <= core_out(319 downto 192) xor p_i;
+                                if encrypt_mode_i = '1' then
+                                    -- Encrypt
+                                    core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
+                                    c_o <= core_out(319 downto 192) xor p_i;
+                                else
+                                    -- Decrypt
+                                    for j in 0 to p_len_i loop
+                                        if j < 64 then
+                                            core_in(256 + j) <= p_i(64 + j);
+                                        else
+                                            core_in(128 + j) <= p_i(j - 64);
+                                        end if;
+                                    end loop;
+
+                                    if p_len_i < 64 then
+                                        core_in(256 + p_len_i) <= core_out(256 + p_len_i) xor '1';
+                                    elsif p_len_i < 128 then
+                                        core_in(128 + p_len_i) <= core_out(128 + p_len_i) xor '1';
+                                    end if;
+
+                                    c_o <= core_out(319 downto 192) xor p_i;
+                                end if;
                                 c_ready_o <= '1';
 
                                 core_in(191 downto 128) <= core_out(191 downto 128) xor key(127 downto 64);
                                 core_in(127 downto 64) <= core_out(127 downto 64) xor key(127 downto 64) xor key(63 downto 0);
                                 core_in(63 downto 0) <= core_out(63 downto 0) xor key(63 downto 0);
                                 core_in(63) <= core_out(63) xor '1' xor key(63);
-
-                                
-
 
                                 core_rounds <= 12;
                                 curr_state <= finalization;
@@ -131,16 +152,42 @@ begin
                             if associated_data_word_left_i = '1' then
                                 core_in(319 downto 192) <= core_out(319 downto 192) xor a_i;
                             elsif plaintext_word_left_i = '1' then
-                                c_o <= core_out(319 downto 192) xor p_i;
+                                if encrypt_mode_i = '1' then
+                                    core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
+                                    c_o <= core_out(319 downto 192) xor p_i;
+                                else
+                                    core_in(319 downto 192) <= p_i;
+                                    c_o <= core_out(319 downto 192) xor p_i;
+                                end if;
                                 c_ready_o <= '1';
-                                core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
+
                                 core_in(63) <= core_out(63) xor '1';
                                 curr_state <= plaintext;
                             else
-                                c_o <= core_out(319 downto 192) xor p_i;
+                                if encrypt_mode_i = '1' then
+                                    -- Encrypt
+                                    core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
+                                    c_o <= core_out(319 downto 192) xor p_i;
+                                else
+                                    -- Decrypt
+                                    for j in 0 to p_len_i loop
+                                        if j < 64 then
+                                            core_in(256 + j) <= p_i(64 + j);
+                                        else
+                                            core_in(128 + j) <= p_i(j - 64);
+                                        end if;
+                                    end loop;
+
+                                    if p_len_i < 64 then
+                                        core_in(256 + p_len_i) <= core_out(256 + p_len_i) xor '1';
+                                    elsif p_len_i < 128 then
+                                        core_in(128 + p_len_i) <= core_out(128 + p_len_i) xor '1';
+                                    end if;
+
+                                    c_o <= core_out(319 downto 192) xor p_i;
+                                end if;
                                 c_ready_o <= '1';
                                 
-                                core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
                                 core_in(63) <= core_out(63) xor '1';
 
                                 core_in(191 downto 64) <= core_out(191 downto 64) xor key;
@@ -152,37 +199,40 @@ begin
                     when plaintext =>
                         if core_finished = '1' then
                             core_in <= core_out;
-                            c_o <= core_out(319 downto 192) xor p_i;
-                            c_ready_o <= '1';
-
                             start_core <= '1';
                             word_processed_o <= '1';
-                            core_rounds <= 8;
+
+                            if encrypt_mode_i = '1' then
+                                -- Encrypt
+                                core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
+                                c_o <= core_out(319 downto 192) xor p_i;
+                            else
+                                -- Decrypt
+                                for j in 0 to p_len_i loop
+                                    if j < 64 then
+                                        core_in(256 + j) <= p_i(64 + j);
+                                    else
+                                        core_in(128 + j) <= p_i(j - 64);
+                                    end if;
+                                end loop;
+
+                                if p_len_i < 64 then
+                                    core_in(256 + p_len_i) <= core_out(256 + p_len_i) xor '1';
+                                elsif p_len_i < 128 then
+                                    core_in(128 + p_len_i) <= core_out(128 + p_len_i) xor '1';
+                                end if;
+
+                                c_o <= core_out(319 downto 192) xor p_i;
+                            end if;
+                            c_ready_o <= '1';
 
                             if plaintext_word_left_i = '1' then
-                                core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
+                                core_rounds <= 8;
                             else
-                                if p_intermed_debug > 0 then
-
-                                    --core_in(319 downto 320 - p_intermed_debug) <= core_out(319 downto 320 - p_intermed_debug) xor p_i(p_intermed_debug - 1 downto 0);
-                                    --c_o <= (others => '0');
-                                    --c_o(p_intermed_debug - 1 downto 0) <= core_out(319 downto 320 - p_intermed_debug) xor p_i(p_intermed_debug - 1 downto 0);
-                                    core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
-                                    c_o <= core_out(319 downto 192) xor p_i;
-
-                                    --core_in(320 - p_intermed_debug - 1) <= core_out(320 - p_intermed_debug- 1) xor '1';
-
-                                    core_in(191 downto 64) <= core_out(191 downto 64) xor key;
-                                    core_rounds <= 12;
-                                    curr_state <= finalization;
-
-                                else
-                                    core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
-                                    core_in(191 downto 64) <= core_out(191 downto 64) xor key;
-
-                                    core_rounds <= 12;
-                                    curr_state <= finalization;
-                                end if;
+                                
+                                core_in(191 downto 64) <= core_out(191 downto 64) xor key;
+                                core_rounds <= 12;
+                                curr_state <= finalization;
                             end if;
                         end if;
 
