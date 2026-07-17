@@ -60,7 +60,7 @@ async def test_for_hex(dut : copra_stubs.AsconHash256, hexstring, correct_result
     dut.start_i.value = 1
     dut.word_left_i.value = 1
 
-    cocotb.start_soon(generate_input(dut, hexstring))
+    input_task = cocotb.start_soon(generate_input(dut, hexstring))
 
 
     while dut.finished_o.value != 1:
@@ -75,9 +75,31 @@ async def test_for_hex(dut : copra_stubs.AsconHash256, hexstring, correct_result
     assert actual_result == correct_result
     
     await Timer(20, unit="ns")
+    input_task.cancel()
 
 @cocotb.test()
-async def test_ascon_hash(dut : copra_stubs.AsconHash256):
+async def test_ascon_hash_kat(dut : copra_stubs.AsconHash256):
+    logger = cocotb.log
+    logger.setLevel(logging.INFO)
+    
+
+    KAT_dictionary = parse_hash_file("LWC_HASH_KAT_128_256.txt")
+
+    count = 0
+    TESTS_TO_RUN = -1 # -1 to perform all tests
+    cocotb.start_soon(generate_clock(dut))
+
+    for key in KAT_dictionary.keys():
+        logger.info("Starting round: %s " % count)
+        count += 1
+        await test_for_hex(dut, key, KAT_dictionary[key])
+        if debug: logger.warning("Correct solution: " + KAT_dictionary[key])
+
+        if count == TESTS_TO_RUN:
+            break
+
+@cocotb.test()
+async def test_ascon_hash_random(dut : copra_stubs.AsconHash256):
     logger = cocotb.log
     logger.setLevel(logging.INFO)
     

@@ -24,7 +24,7 @@ class AeadEncrypt:
     ad: str
 
 def parse_aead_encrypt_file(file_name):
-    KAT_directory = dict()
+    KAT_dictionary = dict()
 
     with open(file_name, "r") as f:
         lines = f.readlines()
@@ -53,12 +53,12 @@ def parse_aead_encrypt_file(file_name):
                 ad = valstring
             if "CT" in keystring:
                 obj = AeadEncrypt(key, nonce, pt, ad)
-                KAT_directory[obj] = valstring
+                KAT_dictionary[obj] = valstring
     
-    return KAT_directory
+    return KAT_dictionary
 
 def parse_aead_decrypt_file(file_name):
-    KAT_directory = dict()
+    KAT_dictionary = dict()
 
     with open(file_name, "r") as f:
         lines = f.readlines()
@@ -87,9 +87,9 @@ def parse_aead_decrypt_file(file_name):
                 ad = valstring
             if "CT" in keystring:
                 obj = AeadEncrypt(key, nonce, pt, ad)
-                KAT_directory[obj] = valstring
+                KAT_dictionary[obj] = valstring
     
-    return KAT_directory
+    return KAT_dictionary
 
 if __name__ == "__main__":
     parse_aead_encrypt_file("../LWC_AEAD_KAT_128_128.txt")

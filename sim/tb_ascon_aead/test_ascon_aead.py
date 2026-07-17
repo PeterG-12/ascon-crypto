@@ -1,4 +1,5 @@
 from re import M
+import re
 from sre_compile import AT
 import string
 import cocotb
@@ -8,9 +9,11 @@ from random import randint
 import logging
 from typing import TYPE_CHECKING
 from util.parseandpad import parse, pad, split320
-from util.parsefile import parse_aead_encrypt_file
+from util.parsefile import parse_aead_encrypt_file, AeadEncrypt
 from util.general import pad_zeroes, split, invert_bytes_per_word
 from util.simuutil import generate_clock, generate_state_log
+from reference.ascon import ascon_encrypt, ascon_decrypt, get_random_bytes
+from random import randint
 
 debugValue = False
 debug = False
@@ -139,7 +142,7 @@ async def log_core_output(dut : copra_stubs.AsconAed):
     
     while dut.finished_o.value != 1:
         await dut.c_ready_o.rising_edge
-        output = invert_bytes_per_word(hex(dut.c_o.value)[2:])[0:(int(plen) // 4)]
+        output = invert_bytes_per_word(hex(dut.c_o.value)[2:].zfill(32))[0:(int(plen) // 4)]
         if debug: logger.info("Output: " + "   " + output + "  " + str(plen))
         outp += invert_bytes_per_word(output)
 
@@ -186,7 +189,6 @@ async def log_core_input(dut : copra_stubs.AsconAed):
 
 
         
-
 
 async def test_for_hex(dut : copra_stubs.AsconAed, key, nonce, pt, ad, ciphertext):
     global outp
@@ -236,7 +238,7 @@ async def test_for_hex(dut : copra_stubs.AsconAed, key, nonce, pt, ad, ciphertex
     #return
 
     if debug: logger.warning(f"Finished encryption test starting decryption")
-    encryption_task.kill()
+    encryption_task.cancel()
     #cocotb.start_soon(log_core_output(dut))
     #cocotb.start_soon(log_core(dut))
     #cocotb.start_soon(log_core_input(dut))
@@ -282,19 +284,24 @@ async def test_for_hex(dut : copra_stubs.AsconAed, key, nonce, pt, ad, ciphertex
     assert output == pt, "Incorrect plaintext"
 
     await Timer(20, unit="ns")
-    decryption_task.kill()
+    decryption_task.cancel()
     return
 
-@cocotb.test()
-async def test_ascon_aead(dut : copra_stubs.AsconAed):
-    global outp
-    logger = cocotb.log
-    logger.setLevel(logging.INFO)
+
+
+def setup_testbench(dut : copra_stubs.AsconAed):
     dut.encrypt_mode_i.value = 1
     cocotb.start_soon(generate_clock(dut))
     cocotb.start_soon(log_core_output(dut))
     cocotb.start_soon(log_core(dut))
     cocotb.start_soon(log_core_input(dut))
+
+@cocotb.test()
+async def test_ascon_aead_kat(dut : copra_stubs.AsconAed):
+    global outp
+    logger = cocotb.log
+    logger.setLevel(logging.INFO)
+    setup_testbench(dut)
 
     KAT_dictionary = parse_aead_encrypt_file("LWC_AEAD_KAT_128_128.txt")
     
@@ -313,3 +320,75 @@ async def test_ascon_aead(dut : copra_stubs.AsconAed):
         outp = ""
         if count == TESTS_TO_RUN:
             break
+    
+    logger.info("Ended file KAT")
+    logger.info("Starded random testing")
+
+
+    
+@cocotb.test()
+async def test_ascon_aead_random(dut : copra_stubs.AsconAed):
+    global outp
+    logger = cocotb.log
+    logger.setLevel(logging.INFO)
+
+    setup_testbench(dut)
+
+    KAT_dictionary = dict()
+    count = 0
+
+
+    for i in range(1024):
+        key   = get_random_bytes(16)
+        nonce = get_random_bytes(16)
+
+        ad = get_random_bytes(randint(0, 24))
+        pt = get_random_bytes(randint(0, 24))
+
+        ciphertext = ascon_encrypt(key, nonce, ad, pt,  "Ascon-AEAD128")
+
+        obj = AeadEncrypt(key.hex(), nonce.hex(), pt.hex(), ad.hex())
+        KAT_dictionary[obj] = ciphertext.hex()
+
+    for input_data in KAT_dictionary.keys():
+        logger.info("Starting round: %s" % count)
+        
+        obj = input_data
+        await test_for_hex(dut, obj.key, obj.nonce, obj.pt, obj.ad, KAT_dictionary[input_data])
+        
+        outp = ""
+        count += 1
+
+@cocotb.test()
+async def test_ascon_aead_extra_length(dut : copra_stubs.AsconAed):
+    global outp
+    logger = cocotb.log
+    logger.setLevel(logging.INFO)
+
+    setup_testbench(dut)
+
+
+    KAT_dictionary = dict()
+    count = 0
+
+
+    for i in range(1024):
+        key   = get_random_bytes(16)
+        nonce = get_random_bytes(16)
+
+        ad = get_random_bytes(randint(25, 250))
+        pt = get_random_bytes(randint(25, 250))
+
+        ciphertext        = ascon_encrypt(key, nonce, ad, pt,  "Ascon-AEAD128")
+
+        obj = AeadEncrypt(key.hex(), nonce.hex(), pt.hex(), ad.hex())
+        KAT_dictionary[obj] = ciphertext.hex()
+
+    for input_data in KAT_dictionary.keys():
+        logger.info("Starting round: %s" % count)
+        
+        obj = input_data
+        await test_for_hex(dut, obj.key, obj.nonce, obj.pt, obj.ad, KAT_dictionary[input_data])
+        
+        outp = ""
+        count += 1
