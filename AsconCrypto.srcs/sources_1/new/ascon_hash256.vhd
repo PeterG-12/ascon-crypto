@@ -10,8 +10,8 @@ entity ascon_hash256 is
         word_left_i : in std_logic; -- Signal whether more than 1 64-bt word is left to be absorbed
         finished_o : out std_logic; -- squeezing finished
         word_processed_o : out std_logic; -- signal that a 64-bit word has ben absorbed
-        state_o : out std_logic_vector(255 downto 0); -- final output state
-        m_i : in std_logic_vector(63 downto 0) -- current input 64-bit word
+        message_digest_o : out std_logic_vector(255 downto 0); -- final output state
+        message_i : in std_logic_vector(63 downto 0) -- current input 64-bit word
     );
 end ascon_hash256;
 
@@ -45,7 +45,7 @@ begin
         if rising_edge(clk_i) then
             if reset_i = '1' then
                 word_processed_o <= '0';
-                state_o <= (others => '0');
+                message_digest_o <= (others => '0');
                 finished_o <= '0';
                 
                 squeeze_counter <= 0;
@@ -57,7 +57,7 @@ begin
                 case curr_state is
                     when idle =>
                         if start_i = '1' then
-                            state_o <= (others => '0');
+                            message_digest_o <= (others => '0');
                             start_core <= '1';
                             finished_o <= '0';
                             squeeze_counter <= 0;
@@ -76,7 +76,7 @@ begin
                             
 
                             core_in <= core_out;
-                            core_in(319 downto 256) <= core_out(319 downto 256) xor m_i;
+                            core_in(319 downto 256) <= core_out(319 downto 256) xor message_i;
 
                             word_processed_o <= '1';
 
@@ -98,7 +98,7 @@ begin
                             start_core <= '1';
 
                             core_in <= core_out;
-                            core_in(319 downto 256) <= core_out(319 downto 256) xor m_i;
+                            core_in(319 downto 256) <= core_out(319 downto 256) xor message_i;
                             word_processed_o <= '1';
 
                             if word_left_i = '0' then
@@ -132,7 +132,7 @@ begin
                                     start_core <= '0';
                                     core_in <= core_out;
                                     finished_o <= '1';
-                                    state_o <= invert_byte_order(H_0) & invert_byte_order(H_1) & invert_byte_order(H_2) & invert_byte_order(core_out(319 downto 256));
+                                    message_digest_o <= invert_byte_order(H_0) & invert_byte_order(H_1) & invert_byte_order(H_2) & invert_byte_order(core_out(319 downto 256));
                                     curr_state <= idle;
                             end case;
                             

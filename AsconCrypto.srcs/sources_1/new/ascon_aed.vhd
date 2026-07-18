@@ -15,12 +15,12 @@ entity ascon_aed is
         word_processed_o : out std_logic; -- signal that a 64-bit word has ben absorbed
         --state_o : out std_logic_vector(255 downto 0); -- final output state
         encrypt_mode_i : in std_logic; -- '1' for encrypt '0' for decrypt
-        k_i : in std_logic_vector(127 downto 0); -- Secret key
-        n_i : in std_logic_vector(127 downto 0); -- Nonce
-        a_i : in std_logic_vector(127 downto 0); -- current AD input 128-bit word
-        p_i : in std_logic_vector(127 downto 0); -- current Plaintext input 128-bit word
-        c_o : out std_logic_vector(127 downto 0); -- current output 128-bit word
-        t_o : out std_logic_vector(127 downto 0); -- authenticaction tag 128-bit word
+        key_i : in std_logic_vector(127 downto 0); -- Secret key
+        nonce_i : in std_logic_vector(127 downto 0); -- Nonce
+        assoc_data_i : in std_logic_vector(127 downto 0); -- current AD input 128-bit word
+        text_i : in std_logic_vector(127 downto 0); -- current Plaintext input 128-bit word
+        text_o : out std_logic_vector(127 downto 0); -- current output 128-bit word
+        tag_o : out std_logic_vector(127 downto 0); -- authenticaction tag 128-bit word
         p_len_i : in natural -- length of plaintext word used at last stage must be greater than 1
     );
 end ascon_aed;
@@ -40,9 +40,31 @@ architecture Behavioral of ascon_aed is
     
     signal debug_clock : natural range 0 to 10_000_000 := 0;
 
+    signal mask_low : std_logic_vector(63 downto 0);
+    signal mask_high : std_logic_vector(63 downto 0);
+
 
 begin
     
+    decrypt_mask : process(p_len_i)
+    begin
+        mask_low <= (others => '0');
+        mask_high <= (others => '0');
+
+        for j in 0 to 63 loop
+            if j < p_len_i then
+                mask_high(j) <= '1';
+            end if;
+        end loop;
+
+        for j in 64 to 127 loop
+            if j < p_len_i then
+                mask_low(j - 64) <= '1';
+            end if;
+        end loop;
+    end process decrypt_mask;
+
+
 
     fsm : process(clk_i, reset_i)
     begin
@@ -53,7 +75,7 @@ begin
                 curr_state <= idle;
                 key <= (others => '0');
                 core_in <= (others => '0');
-                c_o <= (others => '0');
+                text_o <= (others => '0');
                 c_ready_o <= '0';
                 core_rounds <= 12;
                 finished_o <= '0';
@@ -66,14 +88,14 @@ begin
 
                 case curr_state is
                     when idle => 
-                        c_o <= (others => '0');
+                        text_o <= (others => '0');
                         core_rounds <= 12;
                         finished_o <= '0';
                         if start_i = '1' then
                             start_core <= '1';
 
-                            core_in <= IV_AEAD & k_i & n_i;
-                            key <= k_i;
+                            core_in <= IV_AEAD & key_i & nonce_i;
+                            key <= key_i;
                             curr_state <= initialization;
                         end if;
 
@@ -88,16 +110,16 @@ begin
                             core_in(191 downto 0) <= core_out(191 downto 0) xor (x"0000000000000000" & key);
 
                             if associated_data_word_left_i = '1' then
-                                core_in(319 downto 192) <= core_out(319 downto 192) xor a_i;
+                                core_in(319 downto 192) <= core_out(319 downto 192) xor assoc_data_i;
                                 curr_state <= associated_data;
                                 
                             elsif plaintext_word_left_i = '1' then
                                 if encrypt_mode_i = '1' then
-                                    core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
-                                    c_o <= core_out(319 downto 192) xor p_i;
+                                    core_in(319 downto 192) <= core_out(319 downto 192) xor text_i;
+                                    text_o <= core_out(319 downto 192) xor text_i;
                                 else
-                                    core_in(319 downto 192) <= p_i;
-                                    c_o <= core_out(319 downto 192) xor p_i;
+                                    core_in(319 downto 192) <= text_i;
+                                    text_o <= core_out(319 downto 192) xor text_i;
                                 end if;
 
                                 c_ready_o <= '1';
@@ -109,17 +131,12 @@ begin
                             else
                                 if encrypt_mode_i = '1' then
                                     -- Encrypt
-                                    core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
-                                    c_o <= core_out(319 downto 192) xor p_i;
+                                    core_in(319 downto 192) <= core_out(319 downto 192) xor text_i;
+                                    text_o <= core_out(319 downto 192) xor text_i;
                                 else
                                     -- Decrypt
-                                    for j in 0 to p_len_i loop
-                                        if j < 64 then
-                                            core_in(256 + j) <= p_i(64 + j);
-                                        else
-                                            core_in(128 + j) <= p_i(j - 64);
-                                        end if;
-                                    end loop;
+                                    core_in(319 downto 256) <= core_out(319 downto 256) xor ((core_out(319 downto 256) xor text_i(127 downto 64)) and mask_high);
+                                    core_in(255 downto 192) <= core_out(255 downto 192) xor ((core_out(255 downto 192) xor text_i(63 downto 0)) and mask_low);
 
                                     if p_len_i < 64 then
                                         core_in(256 + p_len_i) <= core_out(256 + p_len_i) xor '1';
@@ -127,7 +144,7 @@ begin
                                         core_in(128 + p_len_i) <= core_out(128 + p_len_i) xor '1';
                                     end if;
 
-                                    c_o <= core_out(319 downto 192) xor p_i;
+                                    text_o <= core_out(319 downto 192) xor text_i;
                                 end if;
                                 c_ready_o <= '1';
 
@@ -150,14 +167,14 @@ begin
                             core_rounds <= 8;
 
                             if associated_data_word_left_i = '1' then
-                                core_in(319 downto 192) <= core_out(319 downto 192) xor a_i;
+                                core_in(319 downto 192) <= core_out(319 downto 192) xor assoc_data_i;
                             elsif plaintext_word_left_i = '1' then
                                 if encrypt_mode_i = '1' then
-                                    core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
-                                    c_o <= core_out(319 downto 192) xor p_i;
+                                    core_in(319 downto 192) <= core_out(319 downto 192) xor text_i;
+                                    text_o <= core_out(319 downto 192) xor text_i;
                                 else
-                                    core_in(319 downto 192) <= p_i;
-                                    c_o <= core_out(319 downto 192) xor p_i;
+                                    core_in(319 downto 192) <= text_i;
+                                    text_o <= core_out(319 downto 192) xor text_i;
                                 end if;
                                 c_ready_o <= '1';
 
@@ -166,25 +183,20 @@ begin
                             else
                                 if encrypt_mode_i = '1' then
                                     -- Encrypt
-                                    core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
-                                    c_o <= core_out(319 downto 192) xor p_i;
+                                    core_in(319 downto 192) <= core_out(319 downto 192) xor text_i;
+                                    text_o <= core_out(319 downto 192) xor text_i;
                                 else
                                     -- Decrypt
-                                    for j in 0 to p_len_i loop
-                                        if j < 64 then
-                                            core_in(256 + j) <= p_i(64 + j);
-                                        else
-                                            core_in(128 + j) <= p_i(j - 64);
-                                        end if;
-                                    end loop;
-
+                                    core_in(319 downto 256) <= core_out(319 downto 256) xor ((core_out(319 downto 256) xor text_i(127 downto 64)) and mask_high);
+                                    core_in(255 downto 192) <= core_out(255 downto 192) xor ((core_out(255 downto 192) xor text_i(63 downto 0)) and mask_low);
+                                    
                                     if p_len_i < 64 then
                                         core_in(256 + p_len_i) <= core_out(256 + p_len_i) xor '1';
                                     elsif p_len_i < 128 then
                                         core_in(128 + p_len_i) <= core_out(128 + p_len_i) xor '1';
                                     end if;
 
-                                    c_o <= core_out(319 downto 192) xor p_i;
+                                    text_o <= core_out(319 downto 192) xor text_i;
                                 end if;
                                 c_ready_o <= '1';
                                 
@@ -204,17 +216,12 @@ begin
 
                             if encrypt_mode_i = '1' then
                                 -- Encrypt
-                                core_in(319 downto 192) <= core_out(319 downto 192) xor p_i;
-                                c_o <= core_out(319 downto 192) xor p_i;
+                                core_in(319 downto 192) <= core_out(319 downto 192) xor text_i;
+                                text_o <= core_out(319 downto 192) xor text_i;
                             else
                                 -- Decrypt
-                                for j in 0 to p_len_i loop
-                                    if j < 64 then
-                                        core_in(256 + j) <= p_i(64 + j);
-                                    else
-                                        core_in(128 + j) <= p_i(j - 64);
-                                    end if;
-                                end loop;
+                                core_in(319 downto 256) <= core_out(319 downto 256) xor ((core_out(319 downto 256) xor text_i(127 downto 64)) and mask_high);
+                                core_in(255 downto 192) <= core_out(255 downto 192) xor ((core_out(255 downto 192) xor text_i(63 downto 0)) and mask_low);
 
                                 if p_len_i < 64 then
                                     core_in(256 + p_len_i) <= core_out(256 + p_len_i) xor '1';
@@ -222,7 +229,7 @@ begin
                                     core_in(128 + p_len_i) <= core_out(128 + p_len_i) xor '1';
                                 end if;
 
-                                c_o <= core_out(319 downto 192) xor p_i;
+                                text_o <= core_out(319 downto 192) xor text_i;
                             end if;
                             c_ready_o <= '1';
 
@@ -238,7 +245,7 @@ begin
 
                     when finalization =>
                         if core_finished = '1' then
-                            t_o <= core_out(127 downto 0) xor key;
+                            tag_o <= core_out(127 downto 0) xor key;
                             key <= (others => '0'); -- Erasing the key as soon as possible
                             
                             curr_state <= finished;

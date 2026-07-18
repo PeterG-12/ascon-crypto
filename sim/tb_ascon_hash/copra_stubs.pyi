@@ -17,12 +17,12 @@ class AsconHash256(cocotb.handle.HierarchyObject):
     h_0: cocotb.handle.LogicArrayObject
     h_1: cocotb.handle.LogicArrayObject
     h_2: cocotb.handle.LogicArrayObject
-    m_i: cocotb.handle.LogicArrayObject
+    message_digest_o: cocotb.handle.LogicArrayObject
+    message_i: cocotb.handle.LogicArrayObject
     reset_i: cocotb.handle.LogicObject
     squeeze_counter: cocotb.handle.LogicArrayObject
     start_core: cocotb.handle.LogicObject
     start_i: cocotb.handle.LogicObject
-    state_o: cocotb.handle.LogicArrayObject
     word_left_i: cocotb.handle.LogicObject
     word_processed_o: cocotb.handle.LogicObject
 
@@ -45,10 +45,10 @@ class AsconHash256(cocotb.handle.HierarchyObject):
     def __getitem__(self, name: Literal['word_processed_o']) -> cocotb.handle.LogicObject: ...
 
     @overload
-    def __getitem__(self, name: Literal['state_o']) -> cocotb.handle.LogicArrayObject: ...
+    def __getitem__(self, name: Literal['message_digest_o']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
-    def __getitem__(self, name: Literal['m_i']) -> cocotb.handle.LogicArrayObject: ...
+    def __getitem__(self, name: Literal['message_i']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
     def __getitem__(self, name: Literal['curr_state']) -> cocotb.handle.LogicArrayObject: ...

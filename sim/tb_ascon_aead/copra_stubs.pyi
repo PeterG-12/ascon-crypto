@@ -7,10 +7,9 @@ from typing import overload, Literal
 # It provides type stubs for your HDL design for use with cocotb
 
 class AsconAed(cocotb.handle.HierarchyObject):
-    a_i: cocotb.handle.LogicArrayObject
     ascon_core_inst: AsconCoreInst
+    assoc_data_i: cocotb.handle.LogicArrayObject
     associated_data_word_left_i: cocotb.handle.LogicObject
-    c_o: cocotb.handle.LogicArrayObject
     c_ready_o: cocotb.handle.LogicObject
     clk_i: cocotb.handle.LogicObject
     core_finished: cocotb.handle.LogicObject
@@ -22,16 +21,19 @@ class AsconAed(cocotb.handle.HierarchyObject):
     encrypt_mode_i: cocotb.handle.LogicObject
     error_o: cocotb.handle.LogicObject
     finished_o: cocotb.handle.LogicObject
-    k_i: cocotb.handle.LogicArrayObject
     key: cocotb.handle.LogicArrayObject
-    n_i: cocotb.handle.LogicArrayObject
-    p_i: cocotb.handle.LogicArrayObject
+    key_i: cocotb.handle.LogicArrayObject
+    mask_high: cocotb.handle.LogicArrayObject
+    mask_low: cocotb.handle.LogicArrayObject
+    nonce_i: cocotb.handle.LogicArrayObject
     p_len_i: cocotb.handle.LogicArrayObject
     plaintext_word_left_i: cocotb.handle.LogicObject
     reset_i: cocotb.handle.LogicObject
     start_core: cocotb.handle.LogicObject
     start_i: cocotb.handle.LogicObject
-    t_o: cocotb.handle.LogicArrayObject
+    tag_o: cocotb.handle.LogicArrayObject
+    text_i: cocotb.handle.LogicArrayObject
+    text_o: cocotb.handle.LogicArrayObject
     word_processed_o: cocotb.handle.LogicObject
 
     @overload
@@ -65,22 +67,22 @@ class AsconAed(cocotb.handle.HierarchyObject):
     def __getitem__(self, name: Literal['encrypt_mode_i']) -> cocotb.handle.LogicObject: ...
 
     @overload
-    def __getitem__(self, name: Literal['k_i']) -> cocotb.handle.LogicArrayObject: ...
+    def __getitem__(self, name: Literal['key_i']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
-    def __getitem__(self, name: Literal['n_i']) -> cocotb.handle.LogicArrayObject: ...
+    def __getitem__(self, name: Literal['nonce_i']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
-    def __getitem__(self, name: Literal['a_i']) -> cocotb.handle.LogicArrayObject: ...
+    def __getitem__(self, name: Literal['assoc_data_i']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
-    def __getitem__(self, name: Literal['p_i']) -> cocotb.handle.LogicArrayObject: ...
+    def __getitem__(self, name: Literal['text_i']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
-    def __getitem__(self, name: Literal['c_o']) -> cocotb.handle.LogicArrayObject: ...
+    def __getitem__(self, name: Literal['text_o']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
-    def __getitem__(self, name: Literal['t_o']) -> cocotb.handle.LogicArrayObject: ...
+    def __getitem__(self, name: Literal['tag_o']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
     def __getitem__(self, name: Literal['p_len_i']) -> cocotb.handle.LogicArrayObject: ...
@@ -108,6 +110,12 @@ class AsconAed(cocotb.handle.HierarchyObject):
 
     @overload
     def __getitem__(self, name: Literal['debug_clock']) -> cocotb.handle.LogicArrayObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['mask_low']) -> cocotb.handle.LogicArrayObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['mask_high']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
     def __getitem__(self, name: Literal['ascon_core_inst']) -> AsconCoreInst: ...

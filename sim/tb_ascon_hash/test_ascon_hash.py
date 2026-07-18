@@ -10,6 +10,7 @@ from util.parseandpad import parse_and_pad
 from util.parsefile import parse_hash_file
 from util.general import pad_zeroes
 from util.simuutil import generate_clock, generate_state_log
+from reference.ascon import ascon_hash, get_random_bytes
 
 debug = False
 
@@ -27,8 +28,8 @@ async def generate_input(dut : copra_stubs.AsconHash256, hexstring : str):
 
     # More than 1 64-bit word total
     if count > 1:
-        dut.m_i.value = int(M_list[i], 16)
-        if debug: logger.warning("Input: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
+        dut.message_i.value = int(M_list[i], 16)
+        if debug: logger.info("Input: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
         i += 1
 
         while dut.finished_o.value != 1:
@@ -36,15 +37,15 @@ async def generate_input(dut : copra_stubs.AsconHash256, hexstring : str):
 
             if dut.word_processed_o.value == 1:
                 if i != count:
-                    dut.m_i.value = int(M_list[i], 16)
-                    if debug: logger.warning("Input: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
+                    dut.message_i.value = int(M_list[i], 16)
+                    if debug: logger.info("Input: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
                     i += 1
                 if i == count:
                     dut.word_left_i.value = 0
     #Exactly 1 64-bit word
     else:
-        if debug: logger.warning("Input: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
-        dut.m_i.value = int(M_list[i], 16)
+        if debug: logger.info("Input: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
+        dut.message_i.value = int(M_list[i], 16)
         dut.word_left_i.value = 0
 
 async def test_for_hex(dut : copra_stubs.AsconHash256, hexstring, correct_result):
@@ -67,10 +68,10 @@ async def test_for_hex(dut : copra_stubs.AsconHash256, hexstring, correct_result
         await Timer(10, unit="ns")
 
     correct_result = pad_zeroes(correct_result)
-    actual_result = pad_zeroes(hex(dut.state_o.value)[2:])
+    actual_result = pad_zeroes(hex(dut.message_digest_o.value)[2:])
 
-    if debug: logger.warning("Finished with: %s" % actual_result)
-    if debug: logger.warning("Correct solution: " + correct_result)
+    if debug: logger.info("Finished with: %s" % actual_result)
+    if debug: logger.info("Correct solution: " + correct_result)
 
     assert actual_result == correct_result
     
@@ -82,43 +83,71 @@ async def test_ascon_hash_kat(dut : copra_stubs.AsconHash256):
     logger = cocotb.log
     logger.setLevel(logging.INFO)
     
-
     KAT_dictionary = parse_hash_file("LWC_HASH_KAT_128_256.txt")
 
     count = 0
     TESTS_TO_RUN = -1 # -1 to perform all tests
-    cocotb.start_soon(generate_clock(dut))
+    clock_task = cocotb.start_soon(generate_clock(dut))
 
-    for key in KAT_dictionary.keys():
+    for message in KAT_dictionary.keys():
         logger.info("Starting round: %s " % count)
         count += 1
-        await test_for_hex(dut, key, KAT_dictionary[key])
-        if debug: logger.warning("Correct solution: " + KAT_dictionary[key])
+        await test_for_hex(dut, message, KAT_dictionary[message])
+        if debug: logger.info("Correct solution: " + KAT_dictionary[message])
 
         if count == TESTS_TO_RUN:
             break
+
+    clock_task.cancel()
+    
 
 @cocotb.test()
 async def test_ascon_hash_random(dut : copra_stubs.AsconHash256):
     logger = cocotb.log
     logger.setLevel(logging.INFO)
-    
 
-    KAT_dictionary = parse_hash_file("LWC_HASH_KAT_128_256.txt")
-
+    KAT_dictionary = dict()
     count = 0
-    TESTS_TO_RUN = -1 # -1 to perform all tests
-    cocotb.start_soon(generate_clock(dut))
 
-    for key in KAT_dictionary.keys():
+    clock_task = cocotb.start_soon(generate_clock(dut))
+
+
+
+    for i in range(1024):
+        message = get_random_bytes(randint(0, 250))
+        message_digest = ascon_hash(message, "Ascon-Hash256", 32, b"")
+        KAT_dictionary[message.hex()] = message_digest.hex()
+
+    for message in KAT_dictionary.keys():
         logger.info("Starting round: %s " % count)
         count += 1
-        await test_for_hex(dut, key, KAT_dictionary[key])
-        if debug: logger.warning("Correct solution: " + KAT_dictionary[key])
+        await test_for_hex(dut, message, KAT_dictionary[message])
+        if debug: logger.info("Correct solution: " + KAT_dictionary[message])
 
-        if count == TESTS_TO_RUN:
-            break
-        
+    clock_task.cancel()
+
+@cocotb.test()
+async def test_ascon_hash_random_extra_length(dut : copra_stubs.AsconHash256):
+    logger = cocotb.log
+    logger.setLevel(logging.INFO)
+
+    KAT_dictionary = dict()
+    count = 0
+
+    clock_task = cocotb.start_soon(generate_clock(dut))
 
 
+
+    for i in range(1024):
+        message = get_random_bytes(randint(250, 500))
+        message_digest = ascon_hash(message, "Ascon-Hash256", 32, b"")
+        KAT_dictionary[message.hex()] = message_digest.hex()
+
+    for message in KAT_dictionary.keys():
+        logger.info("Starting round: %s " % count)
+        count += 1
+        await test_for_hex(dut, message, KAT_dictionary[message])
+        if debug: logger.info("Correct solution: " + KAT_dictionary[message])
+
+    clock_task.cancel()
 

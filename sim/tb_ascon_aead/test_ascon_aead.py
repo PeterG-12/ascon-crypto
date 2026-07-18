@@ -75,8 +75,8 @@ async def generate_input(dut : copra_stubs.AsconAed, key, nonce, pt, ad):
     key = invert_bytes_per_word(key)
     nonce = invert_bytes_per_word(nonce)
 
-    dut.k_i.value = int(key, 16)
-    dut.n_i.value = int(nonce, 16)
+    dut.key_i.value = int(key, 16)
+    dut.nonce_i.value = int(nonce, 16)
 
     text_list, assoc_data_list, count_text, count_assoc_data, p_last_word_len = input_lists(ad, pt)
 
@@ -88,15 +88,15 @@ async def generate_input(dut : copra_stubs.AsconAed, key, nonce, pt, ad):
 
     if count_assoc_data == 0:
         dut.associated_data_word_left_i.value = 0
-        dut.p_i.value = int(text_list[0], 16)
+        dut.text_i.value = int(text_list[0], 16)
     else:
         dut.associated_data_word_left_i.value = 1
-        dut.a_i.value = int(assoc_data_list[0], 16)
+        dut.assoc_data_i.value = int(assoc_data_list[0], 16)
         if debug: logger.info("Associated data input: " + assoc_data_list[i_associated_data])
 
     if count_text <= 1:
         plen = p_last_word_len
-        dut.p_i.value = int(text_list[0], 16)
+        dut.text_i.value = int(text_list[0], 16)
         dut.plaintext_word_left_i.value = 0
 
     #logger.warning(f"plen: {plen}   lastwordlen {p_last_word_len}")
@@ -113,7 +113,7 @@ async def generate_input(dut : copra_stubs.AsconAed, key, nonce, pt, ad):
         if count_assoc_data > 0 and i_associated_data < count_assoc_data:
             dut.associated_data_word_left_i.value = 1
             dut.plaintext_word_left_i.value = 1
-            dut.a_i.value = int(assoc_data_list[i_associated_data], 16)
+            dut.assoc_data_i.value = int(assoc_data_list[i_associated_data], 16)
             i_associated_data += 1
    
         elif i_text < count_text:
@@ -126,7 +126,7 @@ async def generate_input(dut : copra_stubs.AsconAed, key, nonce, pt, ad):
 
             
             dut.associated_data_word_left_i.value = 0
-            dut.p_i.value = int(text_list[i_text], 16)
+            dut.text_i.value = int(text_list[i_text], 16)
             i_text += 1
         else:
             dut.associated_data_word_left_i.value = 0
@@ -142,7 +142,7 @@ async def log_core_output(dut : copra_stubs.AsconAed):
     
     while dut.finished_o.value != 1:
         await dut.c_ready_o.rising_edge
-        output = invert_bytes_per_word(hex(dut.c_o.value)[2:].zfill(32))[0:(int(plen) // 4)]
+        output = invert_bytes_per_word(hex(dut.text_o.value)[2:].zfill(32))[0:(int(plen) // 4)]
         if debug: logger.info("Output: " + "   " + output + "  " + str(plen))
         outp += invert_bytes_per_word(output)
 
@@ -220,7 +220,7 @@ async def test_for_hex(dut : copra_stubs.AsconAed, key, nonce, pt, ad, ciphertex
 
     output = invert_bytes_per_word(outp)
 
-    raw_tag_hex = hex(dut.t_o.value)[2:].zfill(32)
+    raw_tag_hex = hex(dut.tag_o.value)[2:].zfill(32)
     tag = invert_bytes_per_word(raw_tag_hex)
 
     actual_result = output + tag
@@ -277,7 +277,7 @@ async def test_for_hex(dut : copra_stubs.AsconAed, key, nonce, pt, ad, ciphertex
 
     output = invert_bytes_per_word(outp)
 
-    raw_tag_hex = hex(dut.t_o.value)[2:].zfill(32)
+    raw_tag_hex = hex(dut.tag_o.value)[2:].zfill(32)
     tag = invert_bytes_per_word(raw_tag_hex)
 
     assert tag == correct_tag, "Incorrect tag!"

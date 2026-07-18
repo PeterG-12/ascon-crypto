@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 def parse_hash_file(file_name):
-    KAT_directory = dict()
+    KAT_dictionary = dict()
 
     with open(file_name, "r") as f:
         lines = f.readlines()
@@ -11,9 +11,9 @@ def parse_hash_file(file_name):
             if "Msg" in line:
                 msg = split_line[1].strip().lower()
             if "MD" in line:
-                KAT_directory[msg] = split_line[1].strip().lower()
+                KAT_dictionary[msg] = split_line[1].strip().lower()
     
-    return KAT_directory
+    return KAT_dictionary
 
 
 @dataclass(frozen=True)
