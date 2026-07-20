@@ -76,3 +76,4 @@ ENV/
 *.cf
 *.gtkw
 __pycache__/
+*.ghw
