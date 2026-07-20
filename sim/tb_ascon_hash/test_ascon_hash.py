@@ -1,4 +1,3 @@
-from re import M
 import string
 import cocotb
 from cocotb.triggers import Timer, Edge, with_timeout

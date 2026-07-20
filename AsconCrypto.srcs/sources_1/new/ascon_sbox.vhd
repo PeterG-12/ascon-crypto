@@ -16,12 +16,9 @@ architecture Behavioral of ascon_sbox is
 begin
 
     -- Slice the state in
-    process(state_i)
-    begin
-        for i in 0 to 4 loop
-            sliced_state(4 - i) <= state_i(64 * i + 63 downto 64 * i + 0); -- Extract 64-bit words
-        end loop;
-    end process;
+    gen_slice : for i in 0 to 4 generate
+        sliced_state(4 - i) <= state_i(64 * i + 63 downto 64 * i + 0); -- Extract 64-bit words
+    end generate;
 
     -- Perform Ascons's S-box transformation
     process(sliced_state)

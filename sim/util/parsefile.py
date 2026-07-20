@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 def parse_hash_file(file_name):
-    KAT_dictionary = dict()
+    kat_directory = {}
 
     with open(file_name, "r") as f:
         lines = f.readlines()
@@ -11,9 +11,9 @@ def parse_hash_file(file_name):
             if "Msg" in line:
                 msg = split_line[1].strip().lower()
             if "MD" in line:
-                KAT_dictionary[msg] = split_line[1].strip().lower()
+                kat_directory[msg] = split_line[1].strip().lower()
     
-    return KAT_dictionary
+    return kat_directory
 
 
 @dataclass(frozen=True)
@@ -24,7 +24,7 @@ class AeadEncrypt:
     ad: str
 
 def parse_aead_encrypt_file(file_name):
-    KAT_dictionary = dict()
+    kat_directory = {}
 
     with open(file_name, "r") as f:
         lines = f.readlines()
@@ -53,12 +53,12 @@ def parse_aead_encrypt_file(file_name):
                 ad = valstring
             if "CT" in keystring:
                 obj = AeadEncrypt(key, nonce, pt, ad)
-                KAT_dictionary[obj] = valstring
+                kat_directory[obj] = valstring
     
-    return KAT_dictionary
+    return kat_directory
 
 def parse_aead_decrypt_file(file_name):
-    KAT_dictionary = dict()
+    kat_directory = {}
 
     with open(file_name, "r") as f:
         lines = f.readlines()
@@ -87,9 +87,9 @@ def parse_aead_decrypt_file(file_name):
                 ad = valstring
             if "CT" in keystring:
                 obj = AeadEncrypt(key, nonce, pt, ad)
-                KAT_dictionary[obj] = valstring
+                kat_directory[obj] = valstring
     
-    return KAT_dictionary
+    return kat_directory
 
 if __name__ == "__main__":
     parse_aead_encrypt_file("../LWC_AEAD_KAT_128_128.txt")

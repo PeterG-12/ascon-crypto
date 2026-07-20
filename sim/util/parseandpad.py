@@ -52,21 +52,6 @@ def parse(hexstring: str, r_bytes: int) -> tuple:
 
 
 def pad(hexstring: str, r_bytes: int) -> str:
-    leading_zeroes = 0
-    for c in hexstring:
-        if c == '0':
-            leading_zeroes += 1
-        else:
-            break
-    
-
-    if False:
-        if leading_zeroes % 2 == 0:
-            hexstring = hexstring[leading_zeroes:]
-        else:
-            hexstring = hexstring[leading_zeroes-1:]
-
-
     data_bytes = bytes.fromhex(hexstring)
 
     pad_len = r_bytes - (len(data_bytes) % r_bytes)
@@ -84,8 +69,3 @@ def split320(l):
             l = "0" + l
         out_str = l[0:16] + "  " + l[16: 32] + "  " + l[32: 48] + "  " + l[48 : 64] + "  " + l[64:80]
         return out_str
-
-
-x = parse("000102030405060708090A0B0C0D0E0F101112131415161718", 16)
-print(x)
-print(pad(x[0][1], 16))

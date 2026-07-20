@@ -22,12 +22,9 @@ end function;
 begin
 
     -- Slice the state in
-    process(state_i)
-    begin
-        for i in 0 to 4 loop
-            sliced_state(4 - i) <= state_i(64 * i + 63 downto 64 * i + 0); -- Extract 64-bit words
-        end loop;
-    end process;
+    gen_slice : for i in 0 to 4 generate
+        sliced_state(4 - i) <= state_i(64 * i + 63 downto 64 * i + 0); -- Extract 64-bit words
+    end generate;
 
     sliced_out_state(0) <= sliced_state(0) xor rotr64(sliced_state(0), 19) xor rotr64(sliced_state(0), 28);
     sliced_out_state(1) <= sliced_state(1) xor rotr64(sliced_state(1), 61) xor rotr64(sliced_state(1), 39);

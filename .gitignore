@@ -74,5 +74,5 @@ ENV/
 *.pyc
 
 *.cf
-
 *.gtkw
+__pycache__/
