@@ -1,9 +1,12 @@
 v 4
+file . "demo_wrapper.vhd" "47bcc706ef6a4232f40af60f71d598fde5842a0f" "20260720123746.991":
+  entity demo_wrapper at 1( 0) + 0 on 47;
+  architecture behavioral of demo_wrapper at 11( 143) + 0 on 48;
 file . "ascon_sbox.vhd" "300a58f3eb91f20cdbadaa5d41518b0adc843fab" "20260708141619.746":
   entity ascon_sbox at 1( 0) + 0 on 34;
   architecture behavioral of ascon_sbox at 13( 239) + 0 on 35;
-file . "ascon_package.vhd" "ba20ee2426c53eca406a252ace49100f15fe5bd1" "20260708141619.746":
-  package ascon_package at 1( 0) + 0 on 31;
+file . "ascon_package.vhd" "625847cef74e91d707a4409033e2383813f45f99" "20260720123745.925":
+  package ascon_package at 1( 0) + 0 on 46;
 file . "ascon_core.vhd" "dc8ca22932b371062fe2175fa4983011733e348d" "20260708152316.994":
   entity ascon_core at 1( 0) + 0 on 44;
   architecture behavioral of ascon_core at 19( 412) + 0 on 45;

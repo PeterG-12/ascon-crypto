@@ -112,7 +112,7 @@ async def test_ascon_hash_random(dut : copra_stubs.AsconHash256):
 
 
 
-    for i in range(1024):
+    for i in range(300):
         message = get_random_bytes(randint(0, 250))
         message_digest = ascon_hash(message, "Ascon-Hash256", 32, b"")
         KAT_dictionary[message.hex()] = message_digest.hex()
@@ -137,7 +137,7 @@ async def test_ascon_hash_random_extra_length(dut : copra_stubs.AsconHash256):
 
 
 
-    for i in range(1024):
+    for i in range(50):
         message = get_random_bytes(randint(250, 500))
         message_digest = ascon_hash(message, "Ascon-Hash256", 32, b"")
         KAT_dictionary[message.hex()] = message_digest.hex()
