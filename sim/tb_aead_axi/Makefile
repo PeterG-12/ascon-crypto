@@ -6,6 +6,8 @@ TOPLEVEL_LANG ?= vhdl
 
 EXTRA_ARGS += --std=08
 COMPILE_ARGS += --std=08
+EXTRA_ARGS += -Wno-hide
+
 
 #Stub generation
 # Python test module name (Runs Copra first, then your test)

@@ -155,6 +155,11 @@ class AsconCoreInst(cocotb.handle.HierarchyObject):
 
 
 class AsconLinearLayerInst(cocotb.handle.HierarchyObject):
+    gen_slice(0): GenSlice(0)
+    gen_slice(1): GenSlice(1)
+    gen_slice(2): GenSlice(2)
+    gen_slice(3): GenSlice(3)
+    gen_slice(4): GenSlice(4)
     state_i: cocotb.handle.LogicArrayObject
     state_o: cocotb.handle.LogicArrayObject
 
@@ -163,12 +168,32 @@ class AsconLinearLayerInst(cocotb.handle.HierarchyObject):
 
     @overload
     def __getitem__(self, name: Literal['state_o']) -> cocotb.handle.LogicArrayObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(0)']) -> GenSlice(0): ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(1)']) -> GenSlice(1): ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(2)']) -> GenSlice(2): ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(3)']) -> GenSlice(3): ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(4)']) -> GenSlice(4): ...
 
     @overload
     def __getitem__(self, name: str) -> cocotb.handle.SimHandleBase: ...
 
 
 class AsconSboxInst(cocotb.handle.HierarchyObject):
+    gen_slice(0): GenSlice(0)
+    gen_slice(1): GenSlice(1)
+    gen_slice(2): GenSlice(2)
+    gen_slice(3): GenSlice(3)
+    gen_slice(4): GenSlice(4)
     state_i: cocotb.handle.LogicArrayObject
     state_o: cocotb.handle.LogicArrayObject
 
@@ -177,6 +202,21 @@ class AsconSboxInst(cocotb.handle.HierarchyObject):
 
     @overload
     def __getitem__(self, name: Literal['state_o']) -> cocotb.handle.LogicArrayObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(0)']) -> GenSlice(0): ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(1)']) -> GenSlice(1): ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(2)']) -> GenSlice(2): ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(3)']) -> GenSlice(3): ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(4)']) -> GenSlice(4): ...
 
     @overload
     def __getitem__(self, name: str) -> cocotb.handle.SimHandleBase: ...

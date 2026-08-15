@@ -12,12 +12,15 @@ class AsconAead(cocotb.handle.HierarchyObject):
     associated_data_word_left_i: cocotb.handle.LogicObject
     clk_i: cocotb.handle.LogicObject
     core_finished: cocotb.handle.LogicObject
+    core_finished_latched: cocotb.handle.LogicObject
     core_in: cocotb.handle.LogicArrayObject
     core_out: cocotb.handle.LogicArrayObject
+    core_out_latched: cocotb.handle.LogicArrayObject
     core_rounds: cocotb.handle.LogicArrayObject
     curr_state: cocotb.handle.LogicArrayObject
     encrypt_mode_i: cocotb.handle.LogicObject
     finished_o: cocotb.handle.LogicObject
+    input_ready_i: cocotb.handle.LogicObject
     key: cocotb.handle.LogicArrayObject
     key_i: cocotb.handle.LogicArrayObject
     mask_high: cocotb.handle.LogicArrayObject
@@ -28,6 +31,7 @@ class AsconAead(cocotb.handle.HierarchyObject):
     plaintext_word_left_i: cocotb.handle.LogicObject
     reset_i: cocotb.handle.LogicObject
     start_core: cocotb.handle.LogicObject
+    start_core_o: cocotb.handle.LogicObject
     start_i: cocotb.handle.LogicObject
     start_prev: cocotb.handle.LogicObject
     tag_o: cocotb.handle.LogicArrayObject
@@ -54,6 +58,12 @@ class AsconAead(cocotb.handle.HierarchyObject):
 
     @overload
     def __getitem__(self, name: Literal['encrypt_mode_i']) -> cocotb.handle.LogicObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['input_ready_i']) -> cocotb.handle.LogicObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['start_core_o']) -> cocotb.handle.LogicObject: ...
 
     @overload
     def __getitem__(self, name: Literal['finished_o']) -> cocotb.handle.LogicObject: ...
@@ -92,6 +102,9 @@ class AsconAead(cocotb.handle.HierarchyObject):
     def __getitem__(self, name: Literal['core_finished']) -> cocotb.handle.LogicObject: ...
 
     @overload
+    def __getitem__(self, name: Literal['core_finished_latched']) -> cocotb.handle.LogicObject: ...
+
+    @overload
     def __getitem__(self, name: Literal['key']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
@@ -99,6 +112,9 @@ class AsconAead(cocotb.handle.HierarchyObject):
 
     @overload
     def __getitem__(self, name: Literal['core_out']) -> cocotb.handle.LogicArrayObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['core_out_latched']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
     def __getitem__(self, name: Literal['core_rounds']) -> cocotb.handle.LogicArrayObject: ...

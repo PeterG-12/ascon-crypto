@@ -10,7 +10,9 @@ entity ascon_aead is
         associated_data_word_left_i : in std_logic; -- Signal whether at least 1 128-bit AD word is left to be absorbed
         plaintext_word_left_i : in std_logic; -- Signal whether at least 1 128-bt word of plaintext is left to be absorbed
         encrypt_mode_i : in std_logic; -- '1' for encrypt '0' for decrypt
+        input_ready_i : std_logic; -- Input data is ready to be consumed
 
+        start_core_o : out std_logic; -- Core started
         finished_o : out std_logic; -- operation finished
         text_ready_o : out std_logic; -- text block ready
         word_processed_o : out std_logic; -- signal that a 64-bit word has ben absorbed
@@ -30,10 +32,12 @@ architecture Behavioral of ascon_aead is
 
     signal start_core : std_logic := '0';
     signal core_finished : std_logic := '0';
+    signal core_finished_latched : std_logic := '0';
     signal key : std_logic_vector(127 downto 0) := (others => '0');
 
     signal core_in : std_logic_vector(319 downto 0) := (others => '0');
     signal core_out : std_logic_vector(319 downto 0) := (others => '0');
+    signal core_out_latched : std_logic_vector(319 downto 0) := (others => '0');
     signal core_rounds : natural := 12;
 
     signal curr_state : state_type := idle;
@@ -42,6 +46,8 @@ architecture Behavioral of ascon_aead is
     signal mask_high : std_logic_vector(63 downto 0);
     signal pad_low : std_logic_vector(63 downto 0);
     signal pad_high : std_logic_vector(63 downto 0);
+
+
 
     signal start_prev : std_logic := '0';
 
@@ -53,7 +59,7 @@ begin
         mask_high <= (others => '0');
         pad_low <= (others => '0');
         pad_high <= (others => '0');
-
+        
         for j in 0 to 63 loop
             if j < text_len_i then
                 mask_high(j) <= '1';
@@ -80,7 +86,8 @@ begin
 
     end process decrypt_mask;
 
-
+    start_core_o <= start_core;
+    word_processed_o <= core_finished;
 
     fsm : process(clk_i, reset_i)
     begin
@@ -95,11 +102,16 @@ begin
                 core_rounds <= 12;
                 finished_o <= '0';
                 start_core <= '0';
+                core_finished_latched <= '0';
+                core_out_latched <= (others => '0');
             else
                 start_core <= '0';
-                word_processed_o <= '0';
+                --word_processed_o <= '0';
                 text_ready_o <= '0';
-
+                if core_finished = '1' then
+                    core_finished_latched <= '1';
+                    core_out_latched <= core_out;
+                end if;
                 case curr_state is
                     when idle => 
                         start_prev <= start_i;
@@ -115,52 +127,53 @@ begin
                         end if;
 
                     when initialization =>
-                        if core_finished = '1' then
-                            core_in <= core_out;
+                        if core_finished_latched = '1'  and input_ready_i = '1' then
+                            core_finished_latched <= '0';
+                            core_in <= core_out_latched;
                             
-                            word_processed_o <= '1';
+                            -- word_processed_o <= '1';
                             start_core <= '1';
                             core_rounds <= 8;
 
-                            core_in(191 downto 0) <= core_out(191 downto 0) xor (x"0000000000000000" & key);
+                            core_in(191 downto 0) <= core_out_latched(191 downto 0) xor (x"0000000000000000" & key);
 
                             if associated_data_word_left_i = '1' then
-                                core_in(319 downto 192) <= core_out(319 downto 192) xor assoc_data_i;
+                                core_in(319 downto 192) <= core_out_latched(319 downto 192) xor assoc_data_i;
                                 curr_state <= associated_data;
                                 
                             elsif plaintext_word_left_i = '1' then
                                 if encrypt_mode_i = '1' then
-                                    core_in(319 downto 192) <= core_out(319 downto 192) xor text_i;
-                                    text_o <= core_out(319 downto 192) xor text_i;
+                                    core_in(319 downto 192) <= core_out_latched(319 downto 192) xor text_i;
+                                    text_o <= core_out_latched(319 downto 192) xor text_i;
                                 else
                                     core_in(319 downto 192) <= text_i;
-                                    text_o <= core_out(319 downto 192) xor text_i;
+                                    text_o <= core_out_latched(319 downto 192) xor text_i;
                                 end if;
 
                                 text_ready_o <= '1';
-                                core_in(191 downto 128) <= core_out(191 downto 128);
-                                core_in(127 downto 64) <= core_out(127 downto 64) xor (key(127 downto 64));
-                                core_in(63) <= core_out(63) xor '1' xor key(63);
+                                core_in(191 downto 128) <= core_out_latched(191 downto 128);
+                                core_in(127 downto 64) <= core_out_latched(127 downto 64) xor (key(127 downto 64));
+                                core_in(63) <= core_out_latched(63) xor '1' xor key(63);
                                 curr_state <= plaintext;
 
                             else
                                 if encrypt_mode_i = '1' then
                                     -- Encrypt
-                                    core_in(319 downto 192) <= core_out(319 downto 192) xor text_i;
-                                    text_o <= core_out(319 downto 192) xor text_i;
+                                    core_in(319 downto 192) <= core_out_latched(319 downto 192) xor text_i;
+                                    text_o <= core_out_latched(319 downto 192) xor text_i;
                                 else
                                     -- Decrypt
-                                    core_in(319 downto 256) <= core_out(319 downto 256) xor ((core_out(319 downto 256) xor text_i(127 downto 64)) and mask_high) xor pad_high;
-                                    core_in(255 downto 192) <= core_out(255 downto 192) xor ((core_out(255 downto 192) xor text_i(63 downto 0)) and mask_low) xor pad_low;
+                                    core_in(319 downto 256) <= core_out_latched(319 downto 256) xor ((core_out_latched(319 downto 256) xor text_i(127 downto 64)) and mask_high) xor pad_high;
+                                    core_in(255 downto 192) <= core_out_latched(255 downto 192) xor ((core_out_latched(255 downto 192) xor text_i(63 downto 0)) and mask_low) xor pad_low;
 
-                                    text_o <= core_out(319 downto 192) xor text_i;
+                                    text_o <= core_out_latched(319 downto 192) xor text_i;
                                 end if;
                                 text_ready_o <= '1';
 
-                                core_in(191 downto 128) <= core_out(191 downto 128) xor key(127 downto 64);
-                                core_in(127 downto 64) <= core_out(127 downto 64) xor key(127 downto 64) xor key(63 downto 0);
-                                core_in(63 downto 0) <= core_out(63 downto 0) xor key(63 downto 0);
-                                core_in(63) <= core_out(63) xor '1' xor key(63);
+                                core_in(191 downto 128) <= core_out_latched(191 downto 128) xor key(127 downto 64);
+                                core_in(127 downto 64) <= core_out_latched(127 downto 64) xor key(127 downto 64) xor key(63 downto 0);
+                                core_in(63 downto 0) <= core_out_latched(63 downto 0) xor key(63 downto 0);
+                                core_in(63) <= core_out_latched(63) xor '1' xor key(63);
 
                                 core_rounds <= 12;
                                 curr_state <= finalization;
@@ -168,65 +181,69 @@ begin
                         end if;
 
                     when associated_data => 
-                        if core_finished = '1' then
-                            core_in <= core_out;
+                        if core_finished_latched = '1'  and input_ready_i = '1' then
+                            core_finished_latched <= '0';
+                            core_in <= core_out_latched;
 
                             start_core <= '1';
-                            word_processed_o <= '1';
+                            -- word_processed_o <= '1';
                             core_rounds <= 8;
 
                             if associated_data_word_left_i = '1' then
-                                core_in(319 downto 192) <= core_out(319 downto 192) xor assoc_data_i;
+                                core_in(319 downto 192) <= core_out_latched(319 downto 192) xor assoc_data_i;
                             elsif plaintext_word_left_i = '1' then
                                 if encrypt_mode_i = '1' then
-                                    core_in(319 downto 192) <= core_out(319 downto 192) xor text_i;
-                                    text_o <= core_out(319 downto 192) xor text_i;
+                                    core_in(319 downto 192) <= core_out_latched(319 downto 192) xor text_i;
+                                    text_o <= core_out_latched(319 downto 192) xor text_i;
                                 else
                                     core_in(319 downto 192) <= text_i;
-                                    text_o <= core_out(319 downto 192) xor text_i;
+                                    text_o <= core_out_latched(319 downto 192) xor text_i;
                                 end if;
                                 text_ready_o <= '1';
 
-                                core_in(63) <= core_out(63) xor '1';
+                                core_in(63) <= core_out_latched(63) xor '1';
                                 curr_state <= plaintext;
                             else
                                 if encrypt_mode_i = '1' then
                                     -- Encrypt
-                                    core_in(319 downto 192) <= core_out(319 downto 192) xor text_i;
-                                    text_o <= core_out(319 downto 192) xor text_i;
+                                    core_in(319 downto 192) <= core_out_latched(319 downto 192) xor text_i;
+                                    text_o <= core_out_latched(319 downto 192) xor text_i;
                                 else
                                     -- Decrypt
-                                    core_in(319 downto 256) <= core_out(319 downto 256) xor ((core_out(319 downto 256) xor text_i(127 downto 64)) and mask_high) xor pad_high;
-                                    core_in(255 downto 192) <= core_out(255 downto 192) xor ((core_out(255 downto 192) xor text_i(63 downto 0)) and mask_low) xor pad_low;
+                                    core_in(319 downto 256) <= core_out_latched(319 downto 256) xor ((core_out_latched(319 downto 256) xor text_i(127 downto 64)) and mask_high) xor pad_high;
+                                    core_in(255 downto 192) <= core_out_latched(255 downto 192) xor ((core_out_latched(255 downto 192) xor text_i(63 downto 0)) and mask_low) xor pad_low;
 
 
-                                    text_o <= core_out(319 downto 192) xor text_i;
+                                    text_o <= core_out_latched(319 downto 192) xor text_i;
                                 end if;
                                 text_ready_o <= '1';
                                 
-                                core_in(63) <= core_out(63) xor '1';
+                                core_in(63) <= core_out_latched(63) xor '1';
 
-                                core_in(191 downto 64) <= core_out(191 downto 64) xor key;
+                                core_in(191 downto 64) <= core_out_latched(191 downto 64) xor key;
                                 core_rounds <= 12;
                                 curr_state <= finalization;
                             end if;
                         end if;
 
                     when plaintext =>
-                        if core_finished = '1' then
-                            core_in <= core_out;
+                        if core_finished_latched = '1'  and input_ready_i = '1' then
+                            core_finished_latched <= '0';
+
+
+                            core_in <= core_out_latched;
                             start_core <= '1';
-                            word_processed_o <= '1';
+                            -- word_processed_o <= '1';
 
                             if encrypt_mode_i = '1' then
                                 -- Encrypt
-                                core_in(319 downto 192) <= core_out(319 downto 192) xor text_i;
-                                text_o <= core_out(319 downto 192) xor text_i;
+                                core_in(319 downto 192) <= core_out_latched(319 downto 192) xor text_i;
+                                text_o <= core_out_latched(319 downto 192) xor text_i;
                             else
                                 -- Decrypt
-                                core_in(319 downto 256) <= core_out(319 downto 256) xor ((core_out(319 downto 256) xor text_i(127 downto 64)) and mask_high) xor pad_high;
-                                core_in(255 downto 192) <= core_out(255 downto 192) xor ((core_out(255 downto 192) xor text_i(63 downto 0)) and mask_low) xor pad_low;
-                                text_o <= core_out(319 downto 192) xor text_i;
+                                core_in(319 downto 256) <= core_out_latched(319 downto 256) xor ((core_out_latched(319 downto 256) xor text_i(127 downto 64)) and mask_high) xor pad_high;
+                                core_in(255 downto 192) <= core_out_latched(255 downto 192) xor ((core_out_latched(255 downto 192) xor text_i(63 downto 0)) and mask_low) xor pad_low;
+                                text_o <= core_out_latched(319 downto 192) xor text_i;
                             end if;
                             text_ready_o <= '1';
 
@@ -234,15 +251,16 @@ begin
                                 core_rounds <= 8;
                             else
                                 
-                                core_in(191 downto 64) <= core_out(191 downto 64) xor key;
+                                core_in(191 downto 64) <= core_out_latched(191 downto 64) xor key;
                                 core_rounds <= 12;
                                 curr_state <= finalization;
                             end if;
                         end if;
 
                     when finalization =>
-                        if core_finished = '1' then
-                            tag_o <= core_out(127 downto 0) xor key;
+                        if core_finished_latched = '1'  and input_ready_i = '1' then
+                            core_finished_latched <= '0';
+                            tag_o <= core_out_latched(127 downto 0) xor key;
                             key <= (others => '0');
                             curr_state <= finished;
                         end if;

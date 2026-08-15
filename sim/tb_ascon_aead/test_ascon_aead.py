@@ -13,7 +13,7 @@ from reference.ascon import ascon_encrypt, ascon_decrypt, get_random_bytes
 from random import randint
 
 debugValue = False
-debug = False
+debug = True
 debugPerm = False
 
 
@@ -56,7 +56,7 @@ async def generate_input(dut: copra_stubs.AsconAed, key, nonce, pt, ad):
     global plen
     logger = cocotb.log
     logger.setLevel(logging.INFO)
-
+    dut.input_ready_i.value = 1
     if debugValue:
         logger.info("Key: " + key)
     if debugValue:
@@ -104,7 +104,7 @@ async def generate_input(dut: copra_stubs.AsconAed, key, nonce, pt, ad):
     # logger.warning(f"plen: {plen}   lastwordlen {p_last_word_len}")
 
     await dut.start_i.rising_edge
-
+    
     while dut.finished_o.value != 1:
         await dut.core_finished.rising_edge
         dut.text_len_i.value = plen
@@ -208,8 +208,6 @@ async def log_core_input(dut: copra_stubs.AsconAed):
             )
         if debug:
             logger.info("Plen " + "   " + str(plen))
-        if debug:
-            logger.info("Debug clock at: " + str(int(str(dut.debug_clock.value), 2)))
 
         await dut.core_finished.rising_edge
         if debug:
@@ -218,8 +216,6 @@ async def log_core_input(dut: copra_stubs.AsconAed):
                 + "   "
                 + split(pad_zeroes(hex(dut.core_out.value)[2:], 80))
             )
-        if debug:
-            logger.info("Debug clock at: " + str(int(str(dut.debug_clock.value), 2)))
 
 
 async def test_for_hex(dut: copra_stubs.AsconAed, key, nonce, pt, ad, ciphertext):
@@ -250,9 +246,13 @@ async def test_for_hex(dut: copra_stubs.AsconAed, key, nonce, pt, ad, ciphertext
         await Timer(10, unit="ns")
     correct_result = ciphertext.lower()
 
+    if debug:
+        logger.info(f"Before invert: {outp}")
     output = invert_bytes_per_word(outp)
 
     raw_tag_hex = hex(dut.tag_o.value)[2:].zfill(32)
+    if debug:
+        logger.info(f"Before invert: {raw_tag_hex}")
     tag = invert_bytes_per_word(raw_tag_hex)
 
     actual_result = output + tag
@@ -347,6 +347,7 @@ async def test_ascon_aead_kat(dut: copra_stubs.AsconAed):
         logger.info("Starting round: %s" % count)
 
         count += 1
+        
         obj = input_data
         await test_for_hex(
             dut, obj.key, obj.nonce, obj.pt, obj.ad, KAT_dictionary[input_data]

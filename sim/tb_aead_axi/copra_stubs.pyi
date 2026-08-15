@@ -116,6 +116,11 @@ class Asconaead128SlaveLiteV10S00AxiInst(cocotb.handle.HierarchyObject):
     byte_index: cocotb.handle.LogicArrayObject
     finished_o: cocotb.handle.LogicObject
     key_i: cocotb.handle.LogicArrayObject
+    latched_finished: cocotb.handle.LogicObject
+    latched_tag_o: cocotb.handle.LogicArrayObject
+    latched_text_o: cocotb.handle.LogicArrayObject
+    latched_text_ready: cocotb.handle.LogicObject
+    latched_word_processed: cocotb.handle.LogicObject
     mem_logic: cocotb.handle.LogicArrayObject
     nonce_i: cocotb.handle.LogicArrayObject
     s_axi_aclk: cocotb.handle.LogicObject
@@ -166,6 +171,7 @@ class Asconaead128SlaveLiteV10S00AxiInst(cocotb.handle.HierarchyObject):
     slv_reg7: cocotb.handle.LogicArrayObject
     slv_reg8: cocotb.handle.LogicArrayObject
     slv_reg9: cocotb.handle.LogicArrayObject
+    start_core_o: cocotb.handle.LogicObject
     state_read: cocotb.handle.LogicArrayObject
     state_write: cocotb.handle.LogicArrayObject
     status_register: cocotb.handle.LogicArrayObject
@@ -366,6 +372,21 @@ class Asconaead128SlaveLiteV10S00AxiInst(cocotb.handle.HierarchyObject):
     def __getitem__(self, name: Literal['status_register']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
+    def __getitem__(self, name: Literal['latched_text_o']) -> cocotb.handle.LogicArrayObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['latched_tag_o']) -> cocotb.handle.LogicArrayObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['latched_finished']) -> cocotb.handle.LogicObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['latched_text_ready']) -> cocotb.handle.LogicObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['latched_word_processed']) -> cocotb.handle.LogicObject: ...
+
+    @overload
     def __getitem__(self, name: Literal['key_i']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
@@ -379,6 +400,9 @@ class Asconaead128SlaveLiteV10S00AxiInst(cocotb.handle.HierarchyObject):
 
     @overload
     def __getitem__(self, name: Literal['text_len_i']) -> cocotb.handle.LogicArrayObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['start_core_o']) -> cocotb.handle.LogicObject: ...
 
     @overload
     def __getitem__(self, name: Literal['finished_o']) -> cocotb.handle.LogicObject: ...
@@ -408,21 +432,26 @@ class AsconAeadInst(cocotb.handle.HierarchyObject):
     associated_data_word_left_i: cocotb.handle.LogicObject
     clk_i: cocotb.handle.LogicObject
     core_finished: cocotb.handle.LogicObject
+    core_finished_latched: cocotb.handle.LogicObject
     core_in: cocotb.handle.LogicArrayObject
     core_out: cocotb.handle.LogicArrayObject
+    core_out_latched: cocotb.handle.LogicArrayObject
     core_rounds: cocotb.handle.LogicArrayObject
     curr_state: cocotb.handle.LogicArrayObject
-    debug_clock: cocotb.handle.LogicArrayObject
     encrypt_mode_i: cocotb.handle.LogicObject
     finished_o: cocotb.handle.LogicObject
+    input_ready_i: cocotb.handle.LogicObject
     key: cocotb.handle.LogicArrayObject
     key_i: cocotb.handle.LogicArrayObject
     mask_high: cocotb.handle.LogicArrayObject
     mask_low: cocotb.handle.LogicArrayObject
     nonce_i: cocotb.handle.LogicArrayObject
+    pad_high: cocotb.handle.LogicArrayObject
+    pad_low: cocotb.handle.LogicArrayObject
     plaintext_word_left_i: cocotb.handle.LogicObject
     reset_i: cocotb.handle.LogicObject
     start_core: cocotb.handle.LogicObject
+    start_core_o: cocotb.handle.LogicObject
     start_i: cocotb.handle.LogicObject
     start_prev: cocotb.handle.LogicObject
     tag_o: cocotb.handle.LogicArrayObject
@@ -449,6 +478,12 @@ class AsconAeadInst(cocotb.handle.HierarchyObject):
 
     @overload
     def __getitem__(self, name: Literal['encrypt_mode_i']) -> cocotb.handle.LogicObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['input_ready_i']) -> cocotb.handle.LogicObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['start_core_o']) -> cocotb.handle.LogicObject: ...
 
     @overload
     def __getitem__(self, name: Literal['finished_o']) -> cocotb.handle.LogicObject: ...
@@ -487,6 +522,9 @@ class AsconAeadInst(cocotb.handle.HierarchyObject):
     def __getitem__(self, name: Literal['core_finished']) -> cocotb.handle.LogicObject: ...
 
     @overload
+    def __getitem__(self, name: Literal['core_finished_latched']) -> cocotb.handle.LogicObject: ...
+
+    @overload
     def __getitem__(self, name: Literal['key']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
@@ -496,19 +534,25 @@ class AsconAeadInst(cocotb.handle.HierarchyObject):
     def __getitem__(self, name: Literal['core_out']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
+    def __getitem__(self, name: Literal['core_out_latched']) -> cocotb.handle.LogicArrayObject: ...
+
+    @overload
     def __getitem__(self, name: Literal['core_rounds']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
     def __getitem__(self, name: Literal['curr_state']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
-    def __getitem__(self, name: Literal['debug_clock']) -> cocotb.handle.LogicArrayObject: ...
-
-    @overload
     def __getitem__(self, name: Literal['mask_low']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
     def __getitem__(self, name: Literal['mask_high']) -> cocotb.handle.LogicArrayObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['pad_low']) -> cocotb.handle.LogicArrayObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['pad_high']) -> cocotb.handle.LogicArrayObject: ...
 
     @overload
     def __getitem__(self, name: Literal['start_prev']) -> cocotb.handle.LogicObject: ...
@@ -591,6 +635,11 @@ class AsconCoreInst(cocotb.handle.HierarchyObject):
 
 
 class AsconLinearLayerInst(cocotb.handle.HierarchyObject):
+    gen_slice(0): GenSlice(0)
+    gen_slice(1): GenSlice(1)
+    gen_slice(2): GenSlice(2)
+    gen_slice(3): GenSlice(3)
+    gen_slice(4): GenSlice(4)
     state_i: cocotb.handle.LogicArrayObject
     state_o: cocotb.handle.LogicArrayObject
 
@@ -599,12 +648,32 @@ class AsconLinearLayerInst(cocotb.handle.HierarchyObject):
 
     @overload
     def __getitem__(self, name: Literal['state_o']) -> cocotb.handle.LogicArrayObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(0)']) -> GenSlice(0): ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(1)']) -> GenSlice(1): ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(2)']) -> GenSlice(2): ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(3)']) -> GenSlice(3): ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(4)']) -> GenSlice(4): ...
 
     @overload
     def __getitem__(self, name: str) -> cocotb.handle.SimHandleBase: ...
 
 
 class AsconSboxInst(cocotb.handle.HierarchyObject):
+    gen_slice(0): GenSlice(0)
+    gen_slice(1): GenSlice(1)
+    gen_slice(2): GenSlice(2)
+    gen_slice(3): GenSlice(3)
+    gen_slice(4): GenSlice(4)
     state_i: cocotb.handle.LogicArrayObject
     state_o: cocotb.handle.LogicArrayObject
 
@@ -613,6 +682,21 @@ class AsconSboxInst(cocotb.handle.HierarchyObject):
 
     @overload
     def __getitem__(self, name: Literal['state_o']) -> cocotb.handle.LogicArrayObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(0)']) -> GenSlice(0): ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(1)']) -> GenSlice(1): ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(2)']) -> GenSlice(2): ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(3)']) -> GenSlice(3): ...
+
+    @overload
+    def __getitem__(self, name: Literal['gen_slice(4)']) -> GenSlice(4): ...
 
     @overload
     def __getitem__(self, name: str) -> cocotb.handle.SimHandleBase: ...

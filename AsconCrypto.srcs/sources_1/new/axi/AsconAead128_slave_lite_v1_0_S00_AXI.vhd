@@ -86,15 +86,15 @@ end AsconAead128_slave_lite_v1_0_S00_AXI;
 architecture arch_imp of AsconAead128_slave_lite_v1_0_S00_AXI is
 
 	-- AXI4LITE signals
-	signal axi_awaddr	: std_logic_vector(C_S_AXI_ADDR_WIDTH-1 downto 0);
-	signal axi_awready	: std_logic;
-	signal axi_wready	: std_logic;
-	signal axi_bresp	: std_logic_vector(1 downto 0);
-	signal axi_bvalid	: std_logic;
-	signal axi_araddr	: std_logic_vector(C_S_AXI_ADDR_WIDTH-1 downto 0);
-	signal axi_arready	: std_logic;
-	signal axi_rresp	: std_logic_vector(1 downto 0);
-	signal axi_rvalid	: std_logic;
+	signal axi_awaddr   : std_logic_vector(C_S_AXI_ADDR_WIDTH-1 downto 0) := (others => '0');
+    signal axi_awready  : std_logic := '0';
+    signal axi_wready   : std_logic := '0';
+    signal axi_bresp    : std_logic_vector(1 downto 0) := (others => '0');
+    signal axi_bvalid   : std_logic := '0';
+    signal axi_araddr   : std_logic_vector(C_S_AXI_ADDR_WIDTH-1 downto 0) := (others => '0');
+    signal axi_arready  : std_logic := '0';
+    signal axi_rresp    : std_logic_vector(1 downto 0) := (others => '0');
+    signal axi_rvalid   : std_logic := '0';
 
 	-- Example-specific design signals
 	-- local parameter for addressing 32 bit / 64 bit C_S_AXI_DATA_WIDTH
@@ -150,8 +150,15 @@ architecture arch_imp of AsconAead128_slave_lite_v1_0_S00_AXI is
 
 
     -- User signals
-    signal active_high_reset : std_logic;
-    signal status_register : std_logic_vector(31 downto 0);
+    signal active_high_reset : std_logic := '0';
+    signal status_register : std_logic_vector(31 downto 0) := (others => '0');
+
+    signal latched_text_o    : std_logic_vector(127 downto 0) := (others => '0');
+    signal latched_tag_o     : std_logic_vector(127 downto 0) := (others => '0');
+    signal latched_finished  : std_logic := '0';
+
+    signal latched_text_ready     : std_logic := '0';
+    signal latched_word_processed : std_logic := '0';
 
     signal key_i : std_logic_vector(127 downto 0);
     signal nonce_i : std_logic_vector(127 downto 0);
@@ -160,12 +167,13 @@ architecture arch_imp of AsconAead128_slave_lite_v1_0_S00_AXI is
     signal text_len_i : natural range 0 to 128;
 
 
-    signal finished_o :  std_logic;
-    signal text_ready_o :  std_logic; 
-    signal word_processed_o :  std_logic;
+    signal start_core_o : std_logic := '0';
+    signal finished_o :  std_logic := '0';
+    signal text_ready_o :  std_logic := '0'; 
+    signal word_processed_o :  std_logic := '0';
 
-    signal text_o : std_logic_vector(127 downto 0);
-    signal tag_o : std_logic_vector(127 downto 0);
+    signal text_o : std_logic_vector(127 downto 0) := (others => '0');
+    signal tag_o : std_logic_vector(127 downto 0) := (others => '0');
     
 begin
 	-- I/O Connections assignments
@@ -528,6 +536,9 @@ begin
 	            slv_reg26 <= slv_reg26;
 	        end case;
 	      end if;
+          if start_core_o = '1' then
+            slv_reg0(4) <= '0';
+          end if;
 	    end if;
 	  end if;                   
 	end process; 
@@ -576,7 +587,7 @@ begin
 	  end process;                                          
 	-- Implement memory mapped register select and read logic generation
 	 S_AXI_RDATA <= slv_reg0 when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "00000" ) else 
-	 slv_reg1 when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "00001" ) else 
+	 status_register when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "00001" ) else 
 	 slv_reg2 when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "00010" ) else 
 	 slv_reg3 when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "00011" ) else 
 	 slv_reg4 when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "00100" ) else 
@@ -594,14 +605,14 @@ begin
 	 slv_reg16 when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10000" ) else 
 	 slv_reg17 when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10001" ) else 
 	 slv_reg18 when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10010" ) else 
-	 text_o(31 downto 0) when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10011" ) else 
-	 text_o(63 downto 32) when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10100" ) else 
-	 text_o(95 downto 64) when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10101" ) else 
-	 text_o(127 downto 96) when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10110" ) else 
-	 tag_o(31 downto 0) when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10111" ) else 
-	 tag_o(63 downto 32) when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "11000" ) else 
-	 tag_o(95 downto 64) when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "11001" ) else 
-	 tag_o(127 downto 96) when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "11010" ) else 
+	 latched_text_o(31 downto 0) when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10011" ) else 
+	 latched_text_o(63 downto 32) when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10100" ) else 
+	 latched_text_o(95 downto 64) when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10101" ) else 
+	 latched_text_o(127 downto 96) when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10110" ) else 
+	 latched_tag_o(31 downto 0) when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10111" ) else 
+	 latched_tag_o(63 downto 32) when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "11000" ) else 
+	 latched_tag_o(95 downto 64) when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "11001" ) else 
+	 latched_tag_o(127 downto 96) when (axi_araddr(ADDR_LSB+OPT_MEM_ADDR_BITS downto ADDR_LSB) = "11010" ) else 
 	 (others => '0');
 
 	-- Add user logic here
@@ -614,9 +625,6 @@ begin
         text_i <= slv_reg17 & slv_reg16 & slv_reg15 & slv_reg14;
         text_len_i <= to_integer(unsigned(slv_reg18));
 
-        finished_o <= slv_reg1(0);
-        text_ready_o <= slv_reg1(1);
-        word_processed_o <= slv_reg1(2);
 
         ascon_aead_inst: entity work.ascon_aead
          port map(
@@ -626,6 +634,8 @@ begin
             associated_data_word_left_i => slv_reg0(1),
             plaintext_word_left_i => slv_reg0(2),
             encrypt_mode_i => slv_reg0(3),
+            input_ready_i => slv_reg0(4),
+            start_core_o => start_core_o,
             finished_o => finished_o,
             text_ready_o => text_ready_o,
             word_processed_o => word_processed_o,
@@ -637,6 +647,47 @@ begin
             text_o => text_o,
             tag_o => tag_o
         );
+
+
+        -- Latch 1-cycle core pulses into registers
+        process (S_AXI_ACLK)
+        begin
+        if rising_edge(S_AXI_ACLK) then
+            if S_AXI_ARESETN = '0' then
+            latched_finished       <= '0';
+            latched_text_ready     <= '0';
+            latched_word_processed <= '0';
+            latched_text_o         <= (others => '0');
+            latched_tag_o          <= (others => '0');
+            else
+            if text_ready_o = '1' then
+                latched_text_ready <= '1';
+                latched_text_o     <= text_o;
+            end if;
+
+            if word_processed_o = '1' then
+                latched_word_processed <= '1';
+            end if;
+
+            if finished_o = '1' then
+                latched_finished <= '1';
+                latched_tag_o    <= tag_o;
+            end if;
+
+            -- Clear latches when a new start command is written to slv_reg0
+            if (S_AXI_WVALID = '1' and mem_logic = "00000" and S_AXI_WDATA(0) = '1') then
+                latched_finished       <= '0';
+                latched_text_ready     <= '0';
+                latched_word_processed <= '0';
+            end if;
+            end if;
+        end if;
+        end process;
+
+        status_register(0) <= latched_finished or finished_o;
+        status_register(1) <= latched_text_ready or text_ready_o;
+        status_register(2) <= latched_word_processed or word_processed_o;
+        status_register(31 downto 3) <= (others => '0');
 	-- User logic ends
 
 end arch_imp;
