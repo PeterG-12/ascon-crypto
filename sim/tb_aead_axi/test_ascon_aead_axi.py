@@ -20,8 +20,8 @@ ADDR_TEXT_LEN   = 0x48
 ADDR_TEXT_OUT   = 0x4C
 ADDR_TAG_OUT    = 0x5C
 
-debug = True
-debugValue = True
+debug = False
+debugValue = False
 
 if TYPE_CHECKING:
     import copra_stubs
@@ -81,7 +81,9 @@ async def write_control_register(driver : AxiAsconDriver,  start, plaintext_word
     
     logger = cocotb.log
     logger.setLevel(logging.INFO)
-    logger.info(f"Writing status register value: {associated_data_word_left}")
+    
+    if debug:
+        logger.info(f"Writing status register value: {associated_data_word_left}")
     ctrl_data = (start << 0) | (associated_data_word_left << 1) | (plaintext_word_left << 2) | (encrypt_mode << 3) | (input_ready << 4) | (text_read << 5)
     await driver.write_32(ADDR_CTRL, ctrl_data)
 
@@ -89,7 +91,8 @@ async def read_status_register(driver : AxiAsconDriver):
     status_data = await driver.read_32(ADDR_STATUS)
     logger = cocotb.log
     logger.setLevel(logging.INFO)
-    logger.info(f"Reading status register value: {status_data}")
+    if debug:
+        logger.info(f"Reading status register value: {status_data}")
     return status_data & (1 << 0), (status_data & (1 << 1)) // 2, (status_data & (1 << 2) ) // 4
 
 plen = 0
@@ -194,7 +197,6 @@ async def generate_input(dut: copra_stubs.Asconaead128, key, nonce, pt, ad, driv
             while not (word_processed_old == 0 and word_processed == 1):
                 word_processed_old = word_processed
                 finished, c_ready, word_processed = await read_status_register(driver)
-                logger.info(f"Waiting 2 {word_processed}   {word_processed_old}")
                 await RisingEdge(dut.s00_axi_aclk)
 
         
@@ -233,23 +235,22 @@ async def generate_input(dut: copra_stubs.Asconaead128, key, nonce, pt, ad, driv
             associated_data_word_left_ctrl = 0
             plaintext_word_left_ctrl = 0
         
-        logger.info(f"Writing pleft: {plaintext_word_left_ctrl} adleft: {associated_data_word_left_ctrl}")
+        if debug:
+            logger.info(f"Writing pleft: {plaintext_word_left_ctrl} adleft: {associated_data_word_left_ctrl}")
         await write_control_register(driver, start_ctrl, plaintext_word_left_ctrl, associated_data_word_left_ctrl, encrypt_mode_ctrl, 1, 0)
 
         c_ready_old = c_ready
         
-        if debug:
-            logger.info(f"Debug clock: {int(dut.debug_clock)}")
         
         finished, c_ready, word_processed = await read_status_register(driver)
         
         if debug:
             logger.info(f"Vals: {c_ready}   {c_ready_old}")
-            logger.info(f"Debug clock: {int(dut.debug_clock)}")
         
         if c_ready_old == 0 and c_ready == 1:
             text_out = await driver.read_128(ADDR_TEXT_OUT)
-            logger.info(f"TEXT_OUT: {text_out} Plen: {plen}")
+            if debug:
+                logger.info(f"TEXT_OUT: {text_out} Plen: {plen}")
 
             output = invert_bytes_per_word(hex(text_out)[2:].zfill(32))[
                 0 : (int(plen) // 4)
@@ -259,7 +260,6 @@ async def generate_input(dut: copra_stubs.Asconaead128, key, nonce, pt, ad, driv
             outp = outp + output
             if debug:
                 logger.info("ADDED Outp: " + outp)
-                logger.info(f"Debug clock before writing: {int(dut.debug_clock)}")
 
             await write_control_register(driver, start_ctrl, plaintext_word_left_ctrl, associated_data_word_left_ctrl, encrypt_mode_ctrl, 0, 1)
 
@@ -280,8 +280,9 @@ async def test_for_hex(dut: copra_stubs.Asconaead128, key, nonce, pt, ad, cipher
     logger = cocotb.log
     logger.setLevel(logging.INFO)
 
-    logger.info(f"AD: {ad}")
-    logger.info(f"PT: {pt}")
+    if debugValue:
+        logger.info(f"AD: {ad}")
+        logger.info(f"PT: {pt}")
 
     encrypt_mode = 1
     encryption_task = cocotb.start_soon(generate_input(dut, key, nonce, pt, ad, driver, 1))
@@ -297,15 +298,13 @@ async def test_for_hex(dut: copra_stubs.Asconaead128, key, nonce, pt, ad, cipher
 
     correct_result = ciphertext.lower()
 
-    output = invert_bytes_per_word(outp)
-
 
 
     tag = await driver.read_128(ADDR_TAG_OUT)
     raw_tag_hex = hex(tag)[2:].zfill(32)
     inv_tag = invert_bytes_per_word(raw_tag_hex)
     
-    actual_result = output + raw_tag_hex
+    actual_result = outp + raw_tag_hex
 
     if debug:
         logger.info(f"Finished with tag:  {tag}")
@@ -327,16 +326,17 @@ async def test_for_hex(dut: copra_stubs.Asconaead128, key, nonce, pt, ad, cipher
         logger.warning(f"Finished encryption test starting decryption")
 
     encryption_task.cancel()
-    return
+
     outp = ""
 
-    dut.start_i.value = 0
-    dut.reset_i.value = 1
-    dut.encrypt_mode_i.value = 0
+    
+    await write_control_register(driver, 0, 0, 0, 0, 0, 0)
+    dut.s00_axi_aresetn.value = 0
+    await RisingEdge(dut.s00_axi_aclk)
+    await RisingEdge(dut.s00_axi_aclk)
+    dut.s00_axi_aresetn.value = 1
 
     await Timer(60, unit="ns")
-
-    dut.reset_i.value = 0
 
     text = ciphertext[:-32]
     correct_tag = ciphertext[-32:]
@@ -344,27 +344,34 @@ async def test_for_hex(dut: copra_stubs.Asconaead128, key, nonce, pt, ad, cipher
     if debug:
         logger.info(f"Text {ciphertext}   {text}")
 
-    decryption_task = cocotb.start_soon(generate_input(dut, key, nonce, text, ad))
-    dut.start_i.value = 1
+    decryption_task = cocotb.start_soon(generate_input(dut, key, nonce, text, ad, driver, 0))
 
-    if dut.finished_o.value != 1:
-        await dut.finished_o.rising_edge
+    finished, c_ready, word_processed = await read_status_register(driver)
 
-    dut.start_i.value = 0
+    while finished != 1:
+        await RisingEdge(dut.s00_axi_aclk)
+        finished, c_ready, word_processed = await read_status_register(driver)
+
+    await write_control_register(driver, 0, 0, 0, 0, 0, 0)
 
     if debug:
         logger.info(f"ct: {ciphertext}")
 
     correct_result = ciphertext.lower()
 
-    # if debug: logger.info(f"Finished with: {output} :  {tag}")
 
-    output = invert_bytes_per_word(outp)
 
-    raw_tag_hex = hex(dut.tag_o.value)[2:].zfill(32)
-    tag = invert_bytes_per_word(raw_tag_hex)
 
-    assert tag == correct_tag, "Incorrect tag!"
+    output = outp
+
+    tag = await driver.read_128(ADDR_TAG_OUT)
+    raw_tag_hex = hex(tag)[2:].zfill(32)
+    inv_tag = invert_bytes_per_word(raw_tag_hex)
+
+
+    if debug: logger.info(f"Finished with: {output} :  {inv_tag}")
+
+    assert inv_tag == correct_tag, "Incorrect tag!"
     assert output == pt, "Incorrect plaintext"
 
     await Timer(20, unit="ns")
@@ -390,14 +397,12 @@ async def test_ascon_aead_single(dut):
         dut.s00_axi_aresetn,
         reset_active_level=False,
     )
+    
+    logging.getLogger("cocotb.asconaead128.s00_axi").setLevel(logging.WARNING)
     driver = AxiAsconDriver(axi_master)
-
-
-
     dut.s00_axi_aresetn.value = 1
+    
     await RisingEdge(dut.s00_axi_aclk)
-
-
 
     KAT_dictionary = parse_aead_encrypt_file("LWC_AEAD_KAT_128_128.txt")
 

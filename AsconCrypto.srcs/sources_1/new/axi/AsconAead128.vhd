@@ -114,10 +114,6 @@ AsconAead128_slave_lite_v1_0_S00_AXI_inst : AsconAead128_slave_lite_v1_0_S00_AXI
 	);
 
 	-- Add user logic here
-    process(s00_axi_aclk)
-    begin
-        debug_clock <= debug_clock + 1;
-    end process;
 	-- User logic ends
 
 end arch_imp;
