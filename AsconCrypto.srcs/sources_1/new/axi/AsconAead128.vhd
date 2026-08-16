@@ -79,6 +79,8 @@ architecture arch_imp of AsconAead128 is
 		);
 	end component AsconAead128_slave_lite_v1_0_S00_AXI;
 
+    signal debug_clock : integer range 0 to 1_000_000 := 0;
+
 begin
 
 -- Instantiation of Axi Bus Interface S00_AXI
@@ -112,7 +114,10 @@ AsconAead128_slave_lite_v1_0_S00_AXI_inst : AsconAead128_slave_lite_v1_0_S00_AXI
 	);
 
 	-- Add user logic here
-
+    process(s00_axi_aclk)
+    begin
+        debug_clock <= debug_clock + 1;
+    end process;
 	-- User logic ends
 
 end arch_imp;

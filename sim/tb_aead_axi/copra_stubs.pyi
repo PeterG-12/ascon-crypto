@@ -8,6 +8,7 @@ from typing import overload, Literal
 
 class Asconaead128(cocotb.handle.HierarchyObject):
     asconaead128_slave_lite_v1_0_s00_axi_inst: Asconaead128SlaveLiteV10S00AxiInst
+    debug_clock: cocotb.handle.LogicArrayObject
     s00_axi_aclk: cocotb.handle.LogicObject
     s00_axi_araddr: cocotb.handle.LogicArrayObject
     s00_axi_aresetn: cocotb.handle.LogicObject
@@ -94,6 +95,9 @@ class Asconaead128(cocotb.handle.HierarchyObject):
     def __getitem__(self, name: Literal['s00_axi_rready']) -> cocotb.handle.LogicObject: ...
 
     @overload
+    def __getitem__(self, name: Literal['debug_clock']) -> cocotb.handle.LogicArrayObject: ...
+
+    @overload
     def __getitem__(self, name: Literal['asconaead128_slave_lite_v1_0_s00_axi_inst']) -> Asconaead128SlaveLiteV10S00AxiInst: ...
 
     @overload
@@ -114,6 +118,7 @@ class Asconaead128SlaveLiteV10S00AxiInst(cocotb.handle.HierarchyObject):
     axi_rvalid: cocotb.handle.LogicObject
     axi_wready: cocotb.handle.LogicObject
     byte_index: cocotb.handle.LogicArrayObject
+    clear_text_latch_prev: cocotb.handle.LogicObject
     finished_o: cocotb.handle.LogicObject
     key_i: cocotb.handle.LogicArrayObject
     latched_finished: cocotb.handle.LogicObject
@@ -370,6 +375,9 @@ class Asconaead128SlaveLiteV10S00AxiInst(cocotb.handle.HierarchyObject):
 
     @overload
     def __getitem__(self, name: Literal['status_register']) -> cocotb.handle.LogicArrayObject: ...
+
+    @overload
+    def __getitem__(self, name: Literal['clear_text_latch_prev']) -> cocotb.handle.LogicObject: ...
 
     @overload
     def __getitem__(self, name: Literal['latched_text_o']) -> cocotb.handle.LogicArrayObject: ...

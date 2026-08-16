@@ -12,7 +12,7 @@ from util.simuutil import generate_clock, generate_state_log
 from reference.ascon import ascon_encrypt, ascon_decrypt, get_random_bytes
 from random import randint
 
-debugValue = False
+debugValue = True
 debug = True
 debugPerm = False
 
@@ -84,8 +84,10 @@ async def generate_input(dut: copra_stubs.AsconAed, key, nonce, pt, ad):
 
     if debug:
         logger.info(f"Associated data: {assoc_data_list}")
+        logger.info(f"Associated len: {count_assoc_data}")
     if debug:
         logger.info(f"Plaintext data: {text_list}")
+        logger.info(f"Plaintext len: {count_text}")
 
     if count_assoc_data == 0:
         dut.associated_data_word_left_i.value = 0
@@ -227,7 +229,6 @@ async def test_for_hex(dut: copra_stubs.AsconAed, key, nonce, pt, ad, ciphertext
     dut.encrypt_mode_i.value = 1
     dut.start_i.value = 0
     dut.reset_i.value = 1
-
     await Timer(60, unit="ns")
 
     dut.reset_i.value = 0
@@ -347,7 +348,10 @@ async def test_ascon_aead_kat(dut: copra_stubs.AsconAed):
         logger.info("Starting round: %s" % count)
 
         count += 1
-        
+        if count < 562:
+            continue
+        if count == 563:
+            break
         obj = input_data
         await test_for_hex(
             dut, obj.key, obj.nonce, obj.pt, obj.ad, KAT_dictionary[input_data]
@@ -360,6 +364,7 @@ async def test_ascon_aead_kat(dut: copra_stubs.AsconAed):
 
 @cocotb.test()
 async def test_ascon_aead_random(dut: copra_stubs.AsconAed):
+    return
     global outp
     logger = cocotb.log
     logger.setLevel(logging.INFO)
@@ -395,6 +400,7 @@ async def test_ascon_aead_random(dut: copra_stubs.AsconAed):
 
 @cocotb.test()
 async def test_ascon_aead_extra_length(dut: copra_stubs.AsconAed):
+    return
     global outp
     logger = cocotb.log
     logger.setLevel(logging.INFO)

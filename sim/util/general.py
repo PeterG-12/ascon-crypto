@@ -31,5 +31,7 @@ def invert_bytes_per_word(hexstring, word_bytes=8):
         return result
     return hexstring
 
+
+
 def invert_bytes(hexstring):
     return bytes.fromhex(hexstring)[::-1].hex()

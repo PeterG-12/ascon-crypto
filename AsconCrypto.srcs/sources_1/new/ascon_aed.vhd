@@ -48,7 +48,6 @@ architecture Behavioral of ascon_aead is
     signal pad_high : std_logic_vector(63 downto 0);
 
 
-
     signal start_prev : std_logic := '0';
 
 begin

@@ -153,6 +153,8 @@ architecture arch_imp of AsconAead128_slave_lite_v1_0_S00_AXI is
     signal active_high_reset : std_logic := '0';
     signal status_register : std_logic_vector(31 downto 0) := (others => '0');
 
+    signal clear_text_latch_prev : std_logic := '0';
+
     signal latched_text_o    : std_logic_vector(127 downto 0) := (others => '0');
     signal latched_tag_o     : std_logic_vector(127 downto 0) := (others => '0');
     signal latched_finished  : std_logic := '0';
@@ -654,32 +656,42 @@ begin
         begin
         if rising_edge(S_AXI_ACLK) then
             if S_AXI_ARESETN = '0' then
-            latched_finished       <= '0';
-            latched_text_ready     <= '0';
-            latched_word_processed <= '0';
-            latched_text_o         <= (others => '0');
-            latched_tag_o          <= (others => '0');
-            else
-            if text_ready_o = '1' then
-                latched_text_ready <= '1';
-                latched_text_o     <= text_o;
-            end if;
-
-            if word_processed_o = '1' then
-                latched_word_processed <= '1';
-            end if;
-
-            if finished_o = '1' then
-                latched_finished <= '1';
-                latched_tag_o    <= tag_o;
-            end if;
-
-            -- Clear latches when a new start command is written to slv_reg0
-            if (S_AXI_WVALID = '1' and mem_logic = "00000" and S_AXI_WDATA(0) = '1') then
                 latched_finished       <= '0';
                 latched_text_ready     <= '0';
                 latched_word_processed <= '0';
-            end if;
+                latched_text_o         <= (others => '0');
+                latched_tag_o          <= (others => '0');
+            else
+
+                clear_text_latch_prev <= slv_reg0(5);
+
+                if text_ready_o = '1' then
+                    latched_text_ready <= '1';
+                    latched_text_o     <= text_o;
+                end if;
+
+                if word_processed_o = '1' then
+                    latched_word_processed <= '1';
+                end if;
+
+                if finished_o = '1' then
+                    latched_finished <= '1';
+                    latched_tag_o    <= tag_o;
+                end if;
+
+
+                -- Confirm text read
+                if clear_text_latch_prev = '0' and slv_reg0(5) = '1' then
+                    latched_text_ready <= '0';
+                    latched_text_o         <= (others => '0');
+                end if;
+
+                -- Clear latches when a new start command is written to slv_reg0
+                if (S_AXI_WVALID = '1' and mem_logic = "00000" and S_AXI_WDATA(0) = '1') then
+                    latched_finished <= '0';
+                    latched_text_ready <= '0';
+                    latched_word_processed <= '0';
+                end if;
             end if;
         end if;
         end process;
