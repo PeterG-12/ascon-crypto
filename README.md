@@ -8,6 +8,7 @@ Cryptographic modules and their testbenches implementation targeting lightweight
 - Ascon-AEAD128 encryption/decryption hardware module
 - Ascon-Hash256 hardware module
 - Cocotb testbenches for each module with KAT and constrained random value tests
+- Ascon-AEAD128 axi-lite peripheral and testbench
 
 ## Development methods
 
@@ -18,8 +19,6 @@ I have developed the project incrementally and comparing it at each step to the 
 The produced KATs cover many edge cases including both empty, padding-aligned and non-aligned inputs.
 
 ## Notes on usage
-
-Currently the axi-lite interface for the modules is WIP.
 
 The modules can be observed using the testbenches:
 

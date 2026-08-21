@@ -1,0 +1,3 @@
+sim/** linguist-vendored
+tests/** linguist-vendored
+*.vhd linguist-language=VHDL

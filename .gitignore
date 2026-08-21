@@ -77,3 +77,6 @@ ENV/
 *.gtkw
 __pycache__/
 *.ghw
+
+# Axi simulation log files
+simulog_*.txt
