@@ -65,5 +65,13 @@ void write_text_len(uint32_t text_len) {
     write_32(A128_ADDR_ASSOC_DATA, text_len);
 }
 
+uint8_t* read_text(){
+    return (uint8_t*)read_128(A128_ADDR_TEXT_OUT);
+}
+
+uint8_t* read_tag(){
+    return (uint8_t*)read_128(A128_ADDR_TAG_OUT);
+}
+
 
 

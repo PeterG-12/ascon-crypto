@@ -31,6 +31,8 @@ void provide_nonce(const uint32_t nonce[4]);
 void write_text(const uint32_t text[4]);
 void write_associated_data(const uint32_t associated_data[4]);
 void write_text_len(const uint32_t text_len);
+uint8_t* read_text();
+uint8_t* read_tag();
 
 void commit_write_ctrl_register(struct aead128_control *state);
 struct aead128_status read_status_register(void);

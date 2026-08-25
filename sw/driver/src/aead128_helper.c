@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <sys/_types.h>
 
-static inline void *mem_copy(const void *restrict source,
+inline void *mem_copy(const void *restrict source,
                              void *restrict destination, unsigned int len) {
     const uint8_t *src = (uint8_t *)source;
     uint8_t *dst = (uint8_t *)destination;
@@ -15,7 +15,7 @@ static inline void *mem_copy(const void *restrict source,
     return dst;
 }
 
-static inline void *mem_set(void *restrict destination, uint8_t byte,
+inline void *mem_set(void *restrict destination, uint8_t byte,
                             unsigned int len) {
     uint8_t *dst = (uint8_t *)destination;
     for (unsigned int i = 0; i < len; i++) {
