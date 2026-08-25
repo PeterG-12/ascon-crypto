@@ -27,6 +27,17 @@
 #define BAUD_RATE 19200
 /**@}*/
 
+
+// Prototypes
+void test_memory(uint32_t address);
+void set_memory(uint32_t address, int data, uint32_t num);
+void read_memory(uint32_t address);
+void setup_access(void);
+void write_memory(uint32_t address, uint32_t data);
+void hexdump(uint32_t address);
+void aux_print_hex_byte(uint8_t byte);
+void memory_trap_handler(void);
+
 // Global variables
 char access_size;
 volatile int exception;

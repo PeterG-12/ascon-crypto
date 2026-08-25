@@ -1,4 +1,5 @@
 #include "aead128_util.h"
+#include "aead128_types.h"
 #include <stdint.h>
 #include <sys/unistd.h>
 
@@ -12,7 +13,7 @@ void bytes_to_word(uint8_t bytes[16], uint32_t array[4]) {
     }
 }
 
-int get_nth_word(const uint8_t *data, int data_len, int index,
+int get_nth_word(const crypto_block_t *data, int data_len, int index,
                  uint32_t word_buffer[4]) {
 
     uint8_t bytes[16];
@@ -23,7 +24,7 @@ int get_nth_word(const uint8_t *data, int data_len, int index,
     }
 
     for (int i = 0; i < 16; i++) {
-        bytes[i] = *(data + index * 16 + i);
+        //bytes[i] = *(data + index * 16 + i);
     }
 
     bytes_to_word(bytes, word_buffer);
@@ -31,21 +32,11 @@ int get_nth_word(const uint8_t *data, int data_len, int index,
     return 0;
 }
 
-void pad(uint8_t* data, int len, int r_bytes){
-    int pad_len = r_bytes - (len % r_bytes);
+void pad_block(crypto_block_t data, unsigned int bit_len){
+    unsigned char first_non_full_byte = bit_len / 8;
+    unsigned char last_bit = bit_len % 8;
 
-    if(pad_len == 0)
-        return;
-
-    data[len] = 1; 
-
-    for(int i = len + 1; i < pad_len + len; i++){
-        data[i] = 0;
-    }
+    data.b[first_non_full_byte] |= 0x01 << (8 - last_bit - 1);
 
     return;
-}
-
-uint8_t* parse(uint8_t* data_in, int bit_len){
-
 }

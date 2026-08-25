@@ -1,7 +1,7 @@
 #include "../include/aead128_driver.h"
 
 
-void encrypt(const uint8_t *associated_data, const uint8_t *plaintext,
+void encrypt(const crypto_block_t *associated_data, const crypto_block_t *plaintext,
              int associated_data_len, int plaintext_len) {
     struct aead128_control control;
     control.encrypt_mode = 1;
@@ -22,12 +22,7 @@ void encrypt(const uint8_t *associated_data, const uint8_t *plaintext,
         control.associated_data_word_left = 0;
     } else {
         control.associated_data_word_left = 1;
-        uint32_t associated_data_buffer[4];
-
-        get_nth_word(associated_data, associated_data_len, associated_data_i,
-                     associated_data_buffer);
-
-        write_associated_data(associated_data_buffer);
+        write_associated_data(associated_data->w);
     }
 
     if (plaintext_count <= 1) {
@@ -40,5 +35,5 @@ void encrypt(const uint8_t *associated_data, const uint8_t *plaintext,
     write_text(text);
 }
 
-void decrypt(const uint8_t *associated_data, const uint8_t *ciphertext,
+void decrypt(const crypto_block_t *associated_data, const crypto_block_t *ciphertext,
              int associated_data_len, int ciphertext_len) {}

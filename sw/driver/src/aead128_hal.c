@@ -51,15 +51,15 @@ void write_128(uint32_t address, const uint32_t data[4]) {
     }
 }
 
-void provide_key(uint32_t key[4]) { write_128(A128_ADDR_KEY, key); }
+void provide_key(const uint32_t key[4]) { write_128(A128_ADDR_KEY, key); }
 
-void provide_nonce(uint32_t nonce[4]) { write_128(A128_ADDR_NONCE, nonce); }
+void provide_nonce(const uint32_t nonce[4]) { write_128(A128_ADDR_NONCE, nonce); }
 
-void write_associated_data(uint32_t associated_data[4]) {
+void write_associated_data(const uint32_t associated_data[4]) {
     write_128(A128_ADDR_ASSOC_DATA, associated_data);
 }
 
-void write_text(uint32_t text[4]) { write_128(A128_ADDR_ASSOC_DATA, text); }
+void write_text(const uint32_t text[4]) { write_128(A128_ADDR_ASSOC_DATA, text); }
 
 void write_text_len(uint32_t text_len) {
     write_32(A128_ADDR_ASSOC_DATA, text_len);
