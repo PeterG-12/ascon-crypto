@@ -1,0 +1,3 @@
+# Copy this file to "config.mk" and adjust paths as needed.
+
+NEORV32_HOME = /absolute/path/to/neorv32
