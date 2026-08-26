@@ -11,8 +11,6 @@ from util.general import pad_zeroes
 from util.simuutil import generate_clock, generate_state_log
 from reference.ascon import ascon_hash, get_random_bytes
 
-debug = False
-
 # 1. Import the stub ONLY for your IDE, hiding it from the simulator
 if TYPE_CHECKING:
     import copra_stubs
@@ -28,7 +26,7 @@ async def generate_input(dut : copra_stubs.AsconHash256, hexstring : str):
     # More than 1 64-bit word total
     if count > 1:
         dut.message_i.value = int(M_list[i], 16)
-        if debug: logger.info("Input: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
+        logger.debug("Input: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
         i += 1
 
         while dut.finished_o.value != 1:
@@ -37,13 +35,13 @@ async def generate_input(dut : copra_stubs.AsconHash256, hexstring : str):
             if dut.word_processed_o.value == 1:
                 if i != count:
                     dut.message_i.value = int(M_list[i], 16)
-                    if debug: logger.info("Input: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
+                    logger.debug("Input: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
                     i += 1
                 if i == count:
                     dut.word_left_i.value = 0
     #Exactly 1 64-bit word
     else:
-        if debug: logger.info("Input: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
+        logger.debug("Input: " + M_list[i] + "   " + str(hex(int(M_list[i], 16))[2:]))
         dut.message_i.value = int(M_list[i], 16)
         dut.word_left_i.value = 0
 
@@ -69,8 +67,8 @@ async def test_for_hex(dut : copra_stubs.AsconHash256, hexstring, correct_result
     correct_result = pad_zeroes(correct_result)
     actual_result = pad_zeroes(hex(dut.message_digest_o.value)[2:])
 
-    if debug: logger.info("Finished with: %s" % actual_result)
-    if debug: logger.info("Correct solution: " + correct_result)
+    logger.debug("Finished with: %s" % actual_result)
+    logger.debug("Correct solution: " + correct_result)
 
     assert actual_result == correct_result
     
@@ -92,7 +90,7 @@ async def test_ascon_hash_kat(dut : copra_stubs.AsconHash256):
         logger.info("Starting round: %s " % count)
         count += 1
         await test_for_hex(dut, message, KAT_dictionary[message])
-        if debug: logger.info("Correct solution: " + KAT_dictionary[message])
+        logger.debug("Correct solution: " + KAT_dictionary[message])
 
         if count == TESTS_TO_RUN:
             break
@@ -121,7 +119,7 @@ async def test_ascon_hash_random(dut : copra_stubs.AsconHash256):
         logger.info("Starting round: %s " % count)
         count += 1
         await test_for_hex(dut, message, KAT_dictionary[message])
-        if debug: logger.info("Correct solution: " + KAT_dictionary[message])
+        logger.debug("Correct solution: " + KAT_dictionary[message])
 
     clock_task.cancel()
 
@@ -146,7 +144,6 @@ async def test_ascon_hash_random_extra_length(dut : copra_stubs.AsconHash256):
         logger.info("Starting round: %s " % count)
         count += 1
         await test_for_hex(dut, message, KAT_dictionary[message])
-        if debug: logger.info("Correct solution: " + KAT_dictionary[message])
+        logger.debug("Correct solution: " + KAT_dictionary[message])
 
     clock_task.cancel()
-
