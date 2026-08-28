@@ -208,7 +208,6 @@ async def test_for_hex(dut: copra_stubs.AsconAed, key, nonce, pt, ad, ciphertext
     dut.encrypt_mode_i.value = 1
     dut.start_i.value = 0
     dut.reset_i.value = 1
-    await Timer(60, unit="ns")
 
     dut.reset_i.value = 0
 
@@ -219,8 +218,6 @@ async def test_for_hex(dut: copra_stubs.AsconAed, key, nonce, pt, ad, ciphertext
     await Timer(60, unit="ns")
     dut.start_i.value = 0
 
-    # await Timer(1000, unit="ns")
-    # return
 
     while dut.finished_o.value != 1:
         await Timer(10, unit="ns")
@@ -242,16 +239,9 @@ async def test_for_hex(dut: copra_stubs.AsconAed, key, nonce, pt, ad, ciphertext
 
     assert actual_result == correct_result, "Encryption incorrect"
 
-    # if debug: logger.info("Finished with: %s" % output)
-    # if debug: logger.info("Tag: " + tag)
-
-    # return
-
     logger.debug(f"Finished encryption test starting decryption")
     encryption_task.cancel()
-    # cocotb.start_soon(log_core_output(dut))
-    # cocotb.start_soon(log_core(dut))
-    # cocotb.start_soon(log_core_input(dut))
+
 
     outp = ""
 
@@ -279,8 +269,6 @@ async def test_for_hex(dut: copra_stubs.AsconAed, key, nonce, pt, ad, ciphertext
     logger.debug(f"ct: {ciphertext}")
 
     correct_result = ciphertext.lower()
-
-    # if debug: logger.info(f"Finished with: {output} :  {tag}")
 
     output = invert_bytes_per_word(outp)
 

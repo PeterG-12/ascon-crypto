@@ -46,7 +46,7 @@ def input_lists(assoc_data: str, text: str):
     text_list = text_tuple[0]
     text_list[-1] = pad(text_list[-1], 16)
     for i in range(0, len(text_list)):
-        text_list[i] = invert_bytes_per_word(text_list[i])
+        text_list[i] = bytes.fromhex(text_list[i])
     last_word_len = text_tuple[1]
 
     ad_tuple = parse(assoc_data, 16)
@@ -55,7 +55,7 @@ def input_lists(assoc_data: str, text: str):
     if len(assoc_data_list) > 0:
         assoc_data_list[-1] = pad(assoc_data_list[-1], 16)
     for i in range(0, len(assoc_data_list)):
-        assoc_data_list[i] = invert_bytes_per_word(assoc_data_list[i])
+        assoc_data_list[i] = bytes.fromhex(assoc_data_list[i])
 
     count_assoc_data = 0
     count_text = 0
@@ -100,17 +100,21 @@ class AxiAsconDriver:
         )
         return val
 
-    async def write_128(self, base_addr: int, val: int):
+    async def write_128(self, base_addr: int, val: bytes):
         for i in range(4):
-            word = (val >> (i * 32)) & 0xFFFFFFFF
+            chunk = val[i * 4 : (i+1) * 4]
+            word = int.from_bytes(chunk, byteorder="little")
             await self.write_32(base_addr + (i * 4), word)
 
-    async def read_128(self, base_addr: int) -> int:
+    async def read_128(self, base_addr: int) -> bytes:
         val = 0
+        res = bytearray()
         for i in range(4):
             word = await self.read_32(base_addr + (i * 4))
-            val |= word << (i * 32)
-        return val
+            word_bytes = word.to_bytes(4, byteorder="little")
+            res += bytearray(word_bytes)
+        return bytes(res)
+
 
 
 async def write_control_register(driver: AxiAsconDriver, control: ControlSignals):
@@ -160,11 +164,11 @@ async def generate_input(
     i_associated_data = 0
     i_text = 0
 
-    key = invert_bytes_per_word(key)
-    nonce = invert_bytes_per_word(nonce)
+    key = bytes.fromhex(key)
+    nonce = bytes.fromhex(nonce)
 
-    await driver.write_128(ADDR_KEY, int(key, 16))
-    await driver.write_128(ADDR_NONCE, int(nonce, 16))
+    await driver.write_128(ADDR_KEY, key)
+    await driver.write_128(ADDR_NONCE, nonce)
 
     text_list, assoc_data_list, count_text, count_assoc_data, p_last_word_len = (
         input_lists(ad, pt)
@@ -189,13 +193,13 @@ async def generate_input(
         control.associated_data_word_left = 0
     else:
         control.associated_data_word_left = 1
-        await driver.write_128(ADDR_ASSOC_DATA, int(assoc_data_list[0], 16))
-        logger.debug("Associated data input: " + assoc_data_list[i_associated_data])
+        await driver.write_128(ADDR_ASSOC_DATA, assoc_data_list[0])
+        #logger.debug("Associated data input: " + assoc_data_list[i_associated_data])
 
     if count_text <= 1:
         plen = p_last_word_len
         control.text_word_left = 0
-        await driver.write_128(ADDR_TEXT_IN, int(text_list[0], 16))
+        await driver.write_128(ADDR_TEXT_IN, text_list[0])
 
     await write_control_register(driver, control)
 
@@ -234,7 +238,7 @@ async def generate_input(
             control.associated_data_word_left = 1
             control.text_word_left = 1
             await driver.write_128(
-                ADDR_ASSOC_DATA, int(assoc_data_list[i_associated_data], 16)
+                ADDR_ASSOC_DATA, assoc_data_list[i_associated_data]
             )
 
             i_associated_data += 1
@@ -250,7 +254,7 @@ async def generate_input(
 
             control.associated_data_word_left = 0
 
-            await driver.write_128(ADDR_TEXT_IN, int(text_list[i_text], 16))
+            await driver.write_128(ADDR_TEXT_IN, text_list[i_text])
             i_text += 1
         else:
             control.associated_data_word_left = 0
@@ -276,7 +280,7 @@ async def generate_input(
             text_out = await driver.read_128(ADDR_TEXT_OUT)
             logger.debug(f"TEXT_OUT: {text_out} Plen: {plen}")
 
-            output = invert_bytes_per_word(hex(text_out)[2:].zfill(32))[
+            output = text_out.hex().zfill(32)[
                 0 : (int(plen) // 4)
             ]
             logger.debug(
@@ -328,20 +332,17 @@ async def test_for_hex(
 
     correct_result = ciphertext.lower()
 
-    tag = await driver.read_128(ADDR_TAG_OUT)
-    raw_tag_hex = hex(tag)[2:].zfill(32)
-    inv_tag = invert_bytes_per_word(raw_tag_hex)
+    tag_bytes = await driver.read_128(ADDR_TAG_OUT)
+    actual_result = outp + tag_bytes.hex()
 
-    actual_result = outp + raw_tag_hex
-
-    logger.debug(f"Finished with tag:  {tag}")
+    logger.debug(f"Finished with tag:  {tag_bytes.hex()}")
     logger.debug("Finished with: %s" % actual_result)
     logger.debug("Correct solution: " + correct_result)
 
     logger.debug("Final outp: " + outp)
-    logger.debug("Tag: " + inv_tag)
+    logger.debug("Tag: " + tag_bytes.hex())
 
-    final_result = outp + inv_tag
+    final_result = outp + tag_bytes.hex()
     assert final_result == ciphertext.lower(), "Encryption incorrect"
 
     logger.debug(f"Finished encryption test starting decryption")
@@ -376,13 +377,12 @@ async def test_for_hex(
 
     output = outp
 
-    tag = await driver.read_128(ADDR_TAG_OUT)
-    raw_tag_hex = hex(tag)[2:].zfill(32)
-    inv_tag = invert_bytes_per_word(raw_tag_hex)
+    tag_bytes = await driver.read_128(ADDR_TAG_OUT)
 
-    logger.debug(f"Finished with: {output} :  {inv_tag}")
 
-    assert inv_tag == correct_tag, "Incorrect tag!"
+    logger.debug(f"Finished with: {output} :  {tag_bytes.hex()}")
+
+    assert tag_bytes.hex() == correct_tag, "Incorrect tag!"
     assert output == pt, "Incorrect plaintext"
 
     return
@@ -421,7 +421,6 @@ async def test_ascon_aead_single(dut):
 
     for input_data in KAT_dictionary.keys():
 
-        logger.info("Starting round: %s" % count)
 
         count += 1
 
@@ -430,6 +429,11 @@ async def test_ascon_aead_single(dut):
         nonce = obj.nonce
         ad = obj.ad
         pt = obj.pt
+
+        logger.warning(f"{ad}   {pt}")
+        logger.info("Starting round: %s" % count)
+
+
         ciphertext = KAT_dictionary[input_data]
 
         await test_for_hex(dut, key, nonce, pt, ad, ciphertext, driver)
