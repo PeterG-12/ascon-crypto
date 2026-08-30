@@ -1,10 +1,12 @@
+#pragma once
+
 #include "aead128_regs.h"
 #include <neorv32.h>
 #include <stdint.h>
 #include <unistd.h>
 
-#define A128_MMIO_R(a) (*(volatile uint8_t *)(a))
-#define A128_MMIO_W(a, v) (*(volatile uint8_t *)(a) = (uint8_t)(v))
+#define A128_MMIO_R(a) (*(volatile uint32_t *)(a))
+#define A128_MMIO_W(a, v) (*(volatile uint32_t *)(a) = (uint32_t)(v))
 
 struct aead128_control {
     uint8_t start;

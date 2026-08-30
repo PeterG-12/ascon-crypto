@@ -1,32 +1,34 @@
-// ================================================================================ //
-// The NEORV32 RISC-V Processor - https://github.com/stnolting/neorv32              //
-// Copyright (c) NEORV32 contributors.                                              //
-// Copyright (c) 2020 - 2026 Stephan Nolting. All rights reserved.                  //
-// Licensed under the BSD-3-Clause license, see LICENSE for details.                //
-// SPDX-License-Identifier: BSD-3-Clause                                            //
-// ================================================================================ //
+// THIS CODE IS A MODIFIED VERSION TAKING INSPIRATION FROM NEORV32 AXI BUS
+// EXPLORER          //
 
+// ================================================================================
+// // The NEORV32 RISC-V Processor - https://github.com/stnolting/neorv32 //
+// Copyright (c) NEORV32 contributors. // Copyright (c) 2020 - 2026 Stephan
+// Nolting. All rights reserved.                  // Licensed under the
+// BSD-3-Clause license, see LICENSE for details.                //
+// SPDX-License-Identifier: BSD-3-Clause //
+// ================================================================================
+// //
 
-/**********************************************************************//**
- * @file bus_explorer/main.c
- * @author Stephan Nolting
- * @brief Interactive memory inspector.
- **************************************************************************/
-
-
+#include "../include/aead128_driver.h"
+#include "../include/aead128_helper.h"
 #include "aead128_hal.h"
+#include "aead128_types.h"
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/_intsup.h>
 
-
-/**********************************************************************//**
- * @name User configuration
- **************************************************************************/
+/**********************************************************************/ /**
+                                                                          * @name
+                                                                          * User
+                                                                          * configuration
+                                                                          **************************************************************************/
 /**@{*/
 /** UART BAUD rate */
 #define BAUD_RATE 19200
 /**@}*/
-
 
 // Prototypes
 void test_memory(uint32_t address);
@@ -40,545 +42,684 @@ void memory_trap_handler(void);
 
 // Global variables
 char access_size;
+char key_set;
+char nonce_set;
 volatile int exception;
 
-/**********************************************************************//**
- * This program provides an interactive console to read/write memory.
- *
- * @note This program requires the UART to be synthesized.
- *
- * @return 0 if execution was successful
- **************************************************************************/
+/**********************************************************************/ /**
+                                                                          * This
+                                                                          * program
+                                                                          * provides
+                                                                          * an
+                                                                          * interactive
+                                                                          * console
+                                                                          * to
+                                                                          * read/write
+                                                                          * memory.
+                                                                          *
+                                                                          * @note
+                                                                          * This
+                                                                          * program
+                                                                          * requires
+                                                                          * the
+                                                                          * UART
+                                                                          * to
+                                                                          * be
+                                                                          * synthesized.
+                                                                          *
+                                                                          * @return
+                                                                          * 0 if
+                                                                          * execution
+                                                                          * was
+                                                                          * successful
+                                                                          **************************************************************************/
 int main() {
 
-
-    #ifndef __NEWLIB__
-        neorv32_uart0_printf("ERROR! Seems like the compiler does not support newlib... :(\n");
+#ifndef __NEWLIB__
+    neorv32_uart0_printf(
+        "ERROR! Seems like the compiler does not support newlib... :(\n");
     return -1;
-        #endif
-    neorv32_uart0_printf("NEWLIB version %u.%u\n", (uint32_t)__NEWLIB__, (uint32_t)__NEWLIB_MINOR__);
+#endif
+    neorv32_uart0_printf("NEWLIB version %u.%u\n", (uint32_t)__NEWLIB__,
+                         (uint32_t)__NEWLIB_MINOR__);
 
+    char buffer[70];
+    char strtok_delimiter[] = " ";
+    int length = 0;
 
-    
-  char buffer[40];
-  char strtok_delimiter[] = " ";
-  int length = 0;
+    access_size = 0;
 
-  access_size = 0;
-
-  // check if UART unit is implemented at all
-  if (neorv32_uart0_available() == 0) {
-    return 1;
-  }
-
-  // capture all exceptions and give debug info via UART
-  neorv32_rte_setup();
-  neorv32_rte_handler_install(TRAP_CODE_L_MISALIGNED, memory_trap_handler);
-  neorv32_rte_handler_install(TRAP_CODE_L_ACCESS, memory_trap_handler);
-  neorv32_rte_handler_install(TRAP_CODE_S_MISALIGNED, memory_trap_handler);
-  neorv32_rte_handler_install(TRAP_CODE_S_ACCESS, memory_trap_handler);
-
-  // disable all interrupt sources
-  neorv32_cpu_csr_write(CSR_MIE, 0);
-
-  // setup UART at default baud rate, no interrupts
-  neorv32_uart0_setup(BAUD_RATE, 0);
-
-  // intro
-  neorv32_uart0_printf("\n<<< NEORV32 Bus Explorer >>>\n\n");
-
-  // info
-  neorv32_uart0_printf("This program allows to read/write/dump memory space by hand.\n"
-                       "Type 'help' to see the help menu.\n\n");
-
-  // Main menu
-  for (;;) {
-    neorv32_uart0_printf("BUS_EXPLORER:> ");
-    length = neorv32_uart0_scan(buffer, 32, 1);
-    neorv32_uart0_printf("\n");
-
-    if (!length) { // nothing to be done
-      continue;
+    // check if UART unit is implemented at all
+    if (neorv32_uart0_available() == 0) {
+        return 1;
     }
 
-    char* command;
-    char* arg0;
-    char* arg1;
-    char* arg2;
+    // capture all exceptions and give debug info via UART
+    neorv32_rte_setup();
+    neorv32_rte_handler_install(TRAP_CODE_L_MISALIGNED, memory_trap_handler);
+    neorv32_rte_handler_install(TRAP_CODE_L_ACCESS, memory_trap_handler);
+    neorv32_rte_handler_install(TRAP_CODE_S_MISALIGNED, memory_trap_handler);
+    neorv32_rte_handler_install(TRAP_CODE_S_ACCESS, memory_trap_handler);
 
-    command = strtok(buffer, strtok_delimiter);
-    arg0 = strtok(NULL, strtok_delimiter);
-    arg1 = strtok(NULL, strtok_delimiter);
-    arg2 = strtok(NULL, strtok_delimiter);
+    // disable all interrupt sources
+    neorv32_cpu_csr_write(CSR_MIE, 0);
 
-    // decode input and execute command
-    if ((!strcmp(command, "help")) || (command == NULL)) {
-      neorv32_uart0_printf(
-        "Available commands:\n"
-        "\n"
-        " help                        - show this text\n"
-        " setup                       - configure memory access width (byte,half,word)\n"
-        " test [address]              - test memory interface at [address]\n"
-        " set [address] [value] [num] - write [value] [num] times to memory starting at [address]\n"
-        " read [address]              - read data from [address]\n"
-        " write [address] [value]     - write [value] to [address]\n"
-        " dump [address]              - hex dump bytes + ASCII starting at [address]\n"
-        " sync                        - synchronize with main memory\n"
-        " exit                        - return to bootloader (if available)\n"
-        "\n"
-        "NOTE: [address], [num] and [value] are 32-bit hexadecimal numbers without prefix.\n"
-        "      If less than 8 hex chars are entered the remaining MSBs are filled with zeros.\n"
-        "\n"
-        "Examples:\n"
-        "\n"
-        " write 80000020 feedcafe\n"
-        " read 00000460\n"
-        " set 80000100 deadc0de 100\n"
-        "\n"
-      );
+    // setup UART at default baud rate, no interrupts
+    neorv32_uart0_setup(BAUD_RATE, 0);
+
+    // intro
+    neorv32_uart0_printf("\n<<< NEORV32 Bus Explorer >>>\n\n");
+
+    // info
+    neorv32_uart0_printf(
+        "This program allows to read/write/dump memory space by hand.\n"
+        "Type 'help' to see the help menu. \n"
+        "Additionally it features a WIP AEAD128 driver \n\n");
+
+    // Main menu
+    for (;;) {
+        neorv32_uart0_printf("BUS_EXPLORER:> ");
+        length = neorv32_uart0_scan(buffer, 64, 1);
+        neorv32_uart0_printf("\n");
+
+        if (!length) { // nothing to be done
+            continue;
+        }
+
+        char *command;
+        char *arg0;
+        char *arg1;
+        char *arg2;
+
+        command = strtok(buffer, strtok_delimiter);
+        arg0 = strtok(NULL, strtok_delimiter);
+        arg1 = strtok(NULL, strtok_delimiter);
+        arg2 = strtok(NULL, strtok_delimiter);
+
+        // decode input and execute command
+        if ((!strcmp(command, "help")) || (command == NULL)) {
+            neorv32_uart0_printf(
+                "Available commands:\n"
+                "\n"
+                " help                        - show this text\n"
+                " setup                       - configure memory access width "
+                "(byte,half,word)\n"
+                " test [address]              - test memory interface at "
+                "[address]\n"
+                " set [address] [value] [num] - write [value] [num] times to "
+                "memory starting at [address]\n"
+                " read [address]              - read data from [address]\n"
+                " write [address] [value]     - write [value] to [address]\n"
+                " dump [address]              - hex dump bytes + ASCII "
+                "starting at [address]\n"
+                " sync                        - synchronize with main memory\n"
+                " exit                        - return to bootloader (if "
+                "available)\n"
+                "\n"
+                "NOTE: [address], [num] and [value] are 32-bit hexadecimal "
+                "numbers without prefix.\n"
+                "      If less than 8 hex chars are entered the remaining MSBs "
+                "are filled with zeros.\n"
+                "\n"
+                "Examples:\n"
+                "\n"
+                " write 80000020 feedcafe\n"
+                " read 00000460\n"
+                " set 80000100 deadc0de 100\n"
+                "\n");
+        }
+
+        else if (!strcmp(command, "setup")) {
+            setup_access();
+        }
+
+        else if (!strcmp(command, "test")) {
+            if (arg0 == NULL) {
+                neorv32_uart0_printf("Insufficient arguments.\n");
+                neorv32_uart0_printf("test [address]\n");
+            } else {
+                test_memory((uint32_t)neorv32_aux_hexstr2uint64(arg0, 8));
+            }
+        }
+
+        else if (!strcmp(command, "set")) {
+            if ((arg0 == NULL) || (arg1 == NULL) || (arg2 == NULL)) {
+                neorv32_uart0_printf("Insufficient arguments.\n");
+                neorv32_uart0_printf("set [address] [value] [num]\n");
+            } else {
+                set_memory((uint32_t)neorv32_aux_hexstr2uint64(arg0, 8),
+                           (uint32_t)neorv32_aux_hexstr2uint64(arg1, 8),
+                           (uint32_t)neorv32_aux_hexstr2uint64(arg2, 8));
+            }
+        }
+
+        else if (!strcmp(command, "read")) {
+            if (arg0 == NULL) {
+                neorv32_uart0_printf("Insufficient arguments.\n");
+                neorv32_uart0_printf("read [address]\n");
+            } else {
+                read_memory((uint32_t)neorv32_aux_hexstr2uint64(arg0, 8));
+            }
+        }
+
+        else if (!strcmp(command, "write")) {
+            if ((arg0 == NULL) || (arg1 == NULL)) {
+                neorv32_uart0_printf("Insufficient arguments.\n");
+                neorv32_uart0_printf("write [address] [value]\n");
+            } else {
+                write_memory((uint32_t)neorv32_aux_hexstr2uint64(arg0, 8),
+                             (uint32_t)neorv32_aux_hexstr2uint64(arg1, 8));
+            }
+        }
+
+        else if (!strcmp(command, "dump")) {
+            if (arg0 == NULL) {
+                neorv32_uart0_printf("Insufficient arguments.\n");
+                neorv32_uart0_printf("dump [address]\n");
+            } else {
+                hexdump((uint32_t)neorv32_aux_hexstr2uint64(arg0, 8));
+            }
+        }
+
+        else if (!strcmp(command, "sync")) {
+            neorv32_uart0_printf("Synchronizing... ");
+            asm volatile("fence");
+            asm volatile("fence.i");
+            asm volatile("fence");
+            neorv32_uart0_printf("ok\n");
+        }
+
+        else if (!strcmp(command, "exit")) {
+            if (NEORV32_SYSINFO->SOC & (1 << SYSINFO_SOC_BOOTLOADER)) {
+                neorv32_uart0_printf("Returning t0 bootloader...\n");
+                while (neorv32_uart0_tx_busy())
+                    ;
+                const uint32_t boot_addr = (uint32_t)NEORV32_BOOTROM_BASE;
+                asm volatile("csrw mepc, %[addr] \n"
+                             "mret               \n"
+                             :
+                             : [addr] "r"(boot_addr));
+                __builtin_unreachable();
+                while (1)
+                    ; // should never be reached
+            } else {
+                neorv32_uart0_printf("Bootloader not available.\n");
+            }
+        }
+
+        else if (!strcmp(command, "encrypt_test")) {
+            uint8_t key[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+                               0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
+            uint8_t nonce[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05,
+                                 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B,
+                                 0x0C, 0x0D, 0x0E, 0x0F};
+
+            uint8_t pt[16] = {0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+            uint8_t ad[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+                              0x08, 0x09, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+            crypto_block_t *nonce_block =
+                bytes_to_crypto_block(nonce, CRYPTO_BLOCK_BIT_SIZE);
+            set_nonce(nonce_block);
+            
+            crypto_block_t *key_block =
+                bytes_to_crypto_block(key, CRYPTO_BLOCK_BIT_SIZE);
+            set_key(key_block);
+
+            crypto_block_t *pt_block = bytes_to_crypto_block(pt, 2 * 8);
+            crypto_block_t *ad_block = bytes_to_crypto_block(ad, 11 * 8);
+            crypto_block_t tag;
+
+            encrypt(ad_block, pt_block, 11 * 8, 2 * 8, &tag);
+
+            neorv32_uart0_printf("ok\n");
+        }
+
+        else if (!strcmp(command, "key")) {
+            neorv32_uart0_printf(
+                "CRITICAL WARNING\n This command is currently unsafe use only "
+                "for testing and provide a 128 bit key\n");
+
+            if (arg0 == NULL) {
+                neorv32_uart0_printf("Insufficient arguments.\n");
+                neorv32_uart0_printf("key [key] (128 bit)\n");
+            }
+
+            uint8_t key[16];
+            for (int i = 0; i < 16; i++) {
+                if (sscanf(arg0 + (i * 2), "%2hhx", &key[i]) != 1) {
+                    return -1;
+                }
+            }
+
+            crypto_block_t *block =
+                bytes_to_crypto_block(key, CRYPTO_BLOCK_BIT_SIZE);
+            set_key(block);
+            key_set = 1;
+        }
+
+        else if (!strcmp(command, "nonce")) {
+            if (arg0 == NULL) {
+                neorv32_uart0_printf("Insufficient arguments.\n");
+                neorv32_uart0_printf("nonce [nonce] (128 bit)\n");
+            }
+
+            uint8_t nonce[16];
+            for (int i = 0; i < 16; i++) {
+                if (sscanf(arg0 + (i * 2), "%2hhx", &nonce[i]) != 1) {
+                    return -1;
+                }
+            }
+
+            crypto_block_t *block =
+                bytes_to_crypto_block(nonce, CRYPTO_BLOCK_BIT_SIZE);
+            set_nonce(block);
+            nonce_set = 1;
+        }
+
+        else {
+            neorv32_uart0_printf(
+                "Invalid command. Type 'help' to see all commands.\n");
+        }
     }
 
-    else if (!strcmp(command, "setup")) {
-      setup_access();
-    }
-
-    else if (!strcmp(command, "test")) {
-      if (arg0 == NULL) {
-        neorv32_uart0_printf("Insufficient arguments.\n");
-        neorv32_uart0_printf("test [address]\n");
-      }
-      else {
-        test_memory((uint32_t)neorv32_aux_hexstr2uint64(arg0, 8));
-      }
-    }
-
-    else if (!strcmp(command, "set")) {
-      if ((arg0 == NULL) || (arg1 == NULL) || (arg2 == NULL)) {
-        neorv32_uart0_printf("Insufficient arguments.\n");
-        neorv32_uart0_printf("set [address] [value] [num]\n");
-      }
-      else {
-        set_memory((uint32_t)neorv32_aux_hexstr2uint64(arg0, 8),
-                   (uint32_t)neorv32_aux_hexstr2uint64(arg1, 8),
-                   (uint32_t)neorv32_aux_hexstr2uint64(arg2, 8));
-      }
-    }
-
-    else if (!strcmp(command, "read")) {
-      if (arg0 == NULL) {
-        neorv32_uart0_printf("Insufficient arguments.\n");
-        neorv32_uart0_printf("read [address]\n");
-      }
-      else {
-        read_memory((uint32_t)neorv32_aux_hexstr2uint64(arg0, 8));
-      }
-    }
-
-    else if (!strcmp(command, "write")) {
-      if ((arg0 == NULL) || (arg1 == NULL)) {
-        neorv32_uart0_printf("Insufficient arguments.\n");
-        neorv32_uart0_printf("write [address] [value]\n");
-      }
-      else {
-        write_memory((uint32_t)neorv32_aux_hexstr2uint64(arg0, 8),
-                     (uint32_t)neorv32_aux_hexstr2uint64(arg1, 8));
-      }
-    }
-
-    else if (!strcmp(command, "dump")) {
-      if (arg0 == NULL) {
-        neorv32_uart0_printf("Insufficient arguments.\n");
-        neorv32_uart0_printf("dump [address]\n");
-      }
-      else {
-        hexdump((uint32_t)neorv32_aux_hexstr2uint64(arg0, 8));
-      }
-    }
-
-    else if (!strcmp(command, "sync")) {
-      neorv32_uart0_printf("Synchronizing... ");
-      asm volatile ("fence");
-      asm volatile ("fence.i");
-      asm volatile ("fence");
-      neorv32_uart0_printf("ok\n");
-    }
-
-    else if (!strcmp(command, "exit")) {
-      if (NEORV32_SYSINFO->SOC & (1<<SYSINFO_SOC_BOOTLOADER)) {
-        neorv32_uart0_printf("Returning t0 bootloader...\n");
-        while(neorv32_uart0_tx_busy());
-        const uint32_t boot_addr = (uint32_t)NEORV32_BOOTROM_BASE;
-        asm volatile (
-          "csrw mepc, %[addr] \n"
-          "mret               \n"
-          : : [addr] "r" (boot_addr)
-        );
-        __builtin_unreachable();
-        while (1); // should never be reached
-      }
-      else {
-        neorv32_uart0_printf("Bootloader not available.\n");
-      }
-    }
-
-    else {
-      neorv32_uart0_printf("Invalid command. Type 'help' to see all commands.\n");
-    }
-  }
-
-  return 0;
+    return 0;
 }
 
-
-/**********************************************************************//**
- * Configure memory access size
- **************************************************************************/
+/**********************************************************************/ /**
+                                                                          * Configure
+                                                                          * memory
+                                                                          * access
+                                                                          * size
+                                                                          **************************************************************************/
 void setup_access(void) {
 
-  neorv32_uart0_printf("Select data size (press 'x' to abort):\n"
-                       " 'b' - byte, 8-bit, unsigned\n"
-                       " 'h' - half-word, 16-bit, unsigned\n"
-                       " 'w' - word, 32-bit, unsigned\n");
+    neorv32_uart0_printf("Select data size (press 'x' to abort):\n"
+                         " 'b' - byte, 8-bit, unsigned\n"
+                         " 'h' - half-word, 16-bit, unsigned\n"
+                         " 'w' - word, 32-bit, unsigned\n");
 
-  while(1) {
-    neorv32_uart0_printf("selection: ");
-    char tmp = neorv32_uart0_getc();
-    neorv32_uart0_putc(tmp);
-    if ((tmp == 'b') || (tmp == 'h') || (tmp == 'w')) {
-      access_size = tmp;
-      neorv32_uart0_printf("\n");
-      return;
+    while (1) {
+        neorv32_uart0_printf("selection: ");
+        char tmp = neorv32_uart0_getc();
+        neorv32_uart0_putc(tmp);
+        if ((tmp == 'b') || (tmp == 'h') || (tmp == 'w')) {
+            access_size = tmp;
+            neorv32_uart0_printf("\n");
+            return;
+        } else if (tmp == 'x') {
+            neorv32_uart0_printf("\n");
+            return;
+        } else {
+            neorv32_uart0_printf("\nInvalid selection!\n");
+        }
     }
-    else if (tmp == 'x') {
-      neorv32_uart0_printf("\n");
-      return;
-    }
-    else {
-      neorv32_uart0_printf("\nInvalid selection!\n");
-    }
-  }
 }
 
-
-/**********************************************************************//**
- * Test memory access at given address
- **************************************************************************/
+/**********************************************************************/ /**
+                                                                          * Test
+                                                                          * memory
+                                                                          * access
+                                                                          * at
+                                                                          * given
+                                                                          * address
+                                                                          **************************************************************************/
 void test_memory(uint32_t address) {
 
-  int i;
-  uint32_t data_ref[4], data_res[4];
+    int i;
+    uint32_t data_ref[4], data_res[4];
 
-  neorv32_uart0_printf("Testing memory access at address 0x%x.\n", address);
-  exception = 0;
+    neorv32_uart0_printf("Testing memory access at address 0x%x.\n", address);
+    exception = 0;
 
-  // -------------------
-  // byte access
-  // -------------------
-  neorv32_uart0_printf("8-bit accesses... ");
+    // -------------------
+    // byte access
+    // -------------------
+    neorv32_uart0_printf("8-bit accesses... ");
 
-  data_ref[0] = 0x00000078;
-  data_ref[1] = 0x00000056;
-  data_ref[2] = 0x00000034;
-  data_ref[3] = 0x00000012;
+    data_ref[0] = 0x00000078;
+    data_ref[1] = 0x00000056;
+    data_ref[2] = 0x00000034;
+    data_ref[3] = 0x00000012;
 
-  neorv32_cpu_store_unsigned_word(address, 0x00000000);
-  neorv32_cpu_store_unsigned_byte(address+0, (uint8_t)data_ref[0]);
-  neorv32_cpu_store_unsigned_byte(address+1, (uint8_t)data_ref[1]);
-  neorv32_cpu_store_unsigned_byte(address+2, (uint8_t)data_ref[2]);
-  neorv32_cpu_store_unsigned_byte(address+3, (uint8_t)data_ref[3]);
+    neorv32_cpu_store_unsigned_word(address, 0x00000000);
+    neorv32_cpu_store_unsigned_byte(address + 0, (uint8_t)data_ref[0]);
+    neorv32_cpu_store_unsigned_byte(address + 1, (uint8_t)data_ref[1]);
+    neorv32_cpu_store_unsigned_byte(address + 2, (uint8_t)data_ref[2]);
+    neorv32_cpu_store_unsigned_byte(address + 3, (uint8_t)data_ref[3]);
 
-  data_res[0] = (uint32_t)neorv32_cpu_load_unsigned_byte(address+0);
-  data_res[1] = (uint32_t)neorv32_cpu_load_unsigned_byte(address+1);
-  data_res[2] = (uint32_t)neorv32_cpu_load_unsigned_byte(address+2);
-  data_res[3] = (uint32_t)neorv32_cpu_load_unsigned_byte(address+3);
+    data_res[0] = (uint32_t)neorv32_cpu_load_unsigned_byte(address + 0);
+    data_res[1] = (uint32_t)neorv32_cpu_load_unsigned_byte(address + 1);
+    data_res[2] = (uint32_t)neorv32_cpu_load_unsigned_byte(address + 2);
+    data_res[3] = (uint32_t)neorv32_cpu_load_unsigned_byte(address + 3);
 
-  if (exception) {
-    return;
-  }
-
-  if (memcmp((void*)data_ref, (void*)data_res, 4*4)) {
-    neorv32_uart0_printf("FAILED\n");
-    neorv32_uart0_printf("Address      | Read data  | Expected\n");
-    neorv32_uart0_printf("-------------+------------+-----------\n");
-    for (i=0; i<4; i++) {
-      neorv32_uart0_printf("[0x%x] | 0x%x | 0x%x\n", address+i, data_res[i], data_ref[i]);
+    if (exception) {
+        return;
     }
-    return;
-  }
-  else {
-    neorv32_uart0_printf("ok\n");
-  }
 
-  // -------------------
-  // half-word access
-  // -------------------
-  neorv32_uart0_printf("16-bit accesses... ");
-
-  data_ref[0] = 0x00006677;
-  data_ref[1] = 0x00004455;
-
-  neorv32_cpu_store_unsigned_word(address, 0x00000000);
-  neorv32_cpu_store_unsigned_half(address+0, (uint16_t)data_ref[0]);
-  neorv32_cpu_store_unsigned_half(address+2, (uint16_t)data_ref[1]);
-
-  data_res[0] = (uint32_t)neorv32_cpu_load_unsigned_half(address+0);
-  data_res[1] = (uint32_t)neorv32_cpu_load_unsigned_half(address+2);
-
-  if (exception) {
-    return;
-  }
-
-  if (memcmp((void*)data_ref, (void*)data_res, 2*4)) {
-    neorv32_uart0_printf("FAILED\n");
-    neorv32_uart0_printf("Address      | Read data  | Expected\n");
-    neorv32_uart0_printf("-------------+------------+-----------\n");
-    for (i=0; i<2; i++) {
-      neorv32_uart0_printf("[0x%x] | 0x%x | 0x%x\n", address+2*i, data_res[i], data_ref[i]);
+    if (memcmp((void *)data_ref, (void *)data_res, 4 * 4)) {
+        neorv32_uart0_printf("FAILED\n");
+        neorv32_uart0_printf("Address      | Read data  | Expected\n");
+        neorv32_uart0_printf("-------------+------------+-----------\n");
+        for (i = 0; i < 4; i++) {
+            neorv32_uart0_printf("[0x%x] | 0x%x | 0x%x\n", address + i,
+                                 data_res[i], data_ref[i]);
+        }
+        return;
+    } else {
+        neorv32_uart0_printf("ok\n");
     }
-    return;
-  }
-  else {
-    neorv32_uart0_printf("ok\n");
-  }
 
-  // -------------------
-  // word access
-  // -------------------
-  neorv32_uart0_printf("32-bit accesses... ");
+    // -------------------
+    // half-word access
+    // -------------------
+    neorv32_uart0_printf("16-bit accesses... ");
 
-  data_ref[0] = 0xabcd1234;
+    data_ref[0] = 0x00006677;
+    data_ref[1] = 0x00004455;
 
-  neorv32_cpu_store_unsigned_word(address, 0x00000000);
-  neorv32_cpu_store_unsigned_word(address, data_ref[0]);
+    neorv32_cpu_store_unsigned_word(address, 0x00000000);
+    neorv32_cpu_store_unsigned_half(address + 0, (uint16_t)data_ref[0]);
+    neorv32_cpu_store_unsigned_half(address + 2, (uint16_t)data_ref[1]);
 
-  data_res[0] = (uint32_t)neorv32_cpu_load_unsigned_word(address+0);
+    data_res[0] = (uint32_t)neorv32_cpu_load_unsigned_half(address + 0);
+    data_res[1] = (uint32_t)neorv32_cpu_load_unsigned_half(address + 2);
 
-  if (exception) {
-    return;
-  }
+    if (exception) {
+        return;
+    }
 
-  if (memcmp((void*)data_ref, (void*)data_res, 1*4)) {
-    neorv32_uart0_printf("FAILED\n");
-    neorv32_uart0_printf("Address      | Read data  | Expected\n");
-    neorv32_uart0_printf("-------------+------------+-----------\n");
-    neorv32_uart0_printf("[0x%x] | 0x%x | 0x%x\n", address, data_res[0], data_ref[0]);
-    return;
-  }
-  else {
-    neorv32_uart0_printf("ok\n");
-  }
+    if (memcmp((void *)data_ref, (void *)data_res, 2 * 4)) {
+        neorv32_uart0_printf("FAILED\n");
+        neorv32_uart0_printf("Address      | Read data  | Expected\n");
+        neorv32_uart0_printf("-------------+------------+-----------\n");
+        for (i = 0; i < 2; i++) {
+            neorv32_uart0_printf("[0x%x] | 0x%x | 0x%x\n", address + 2 * i,
+                                 data_res[i], data_ref[i]);
+        }
+        return;
+    } else {
+        neorv32_uart0_printf("ok\n");
+    }
+
+    // -------------------
+    // word access
+    // -------------------
+    neorv32_uart0_printf("32-bit accesses... ");
+
+    data_ref[0] = 0xabcd1234;
+
+    neorv32_cpu_store_unsigned_word(address, 0x00000000);
+    neorv32_cpu_store_unsigned_word(address, data_ref[0]);
+
+    data_res[0] = (uint32_t)neorv32_cpu_load_unsigned_word(address + 0);
+
+    if (exception) {
+        return;
+    }
+
+    if (memcmp((void *)data_ref, (void *)data_res, 1 * 4)) {
+        neorv32_uart0_printf("FAILED\n");
+        neorv32_uart0_printf("Address      | Read data  | Expected\n");
+        neorv32_uart0_printf("-------------+------------+-----------\n");
+        neorv32_uart0_printf("[0x%x] | 0x%x | 0x%x\n", address, data_res[0],
+                             data_ref[0]);
+        return;
+    } else {
+        neorv32_uart0_printf("ok\n");
+    }
 }
 
-
-/**********************************************************************//**
- * Fill memory range with specific value
- **************************************************************************/
+/**********************************************************************/ /**
+                                                                          * Fill
+                                                                          * memory
+                                                                          * range
+                                                                          * with
+                                                                          * specific
+                                                                          * value
+                                                                          **************************************************************************/
 void set_memory(uint32_t address, int value, uint32_t num) {
 
-  if (access_size == 0) {
-    neorv32_uart0_printf("Configure data size using 'setup' first.\n");
-    return;
-  }
+    if (access_size == 0) {
+        neorv32_uart0_printf("Configure data size using 'setup' first.\n");
+        return;
+    }
 
-  exception = 0;
+    exception = 0;
 
-  uint32_t i = 0;
-  for (i=0; i<num; i++) {
-    if (access_size == 'b') {
-      neorv32_cpu_store_unsigned_byte(address, (uint8_t)value);
-      address += 1;
+    uint32_t i = 0;
+    for (i = 0; i < num; i++) {
+        if (access_size == 'b') {
+            neorv32_cpu_store_unsigned_byte(address, (uint8_t)value);
+            address += 1;
+        } else if (access_size == 'h') {
+            neorv32_cpu_store_unsigned_half(address, (uint16_t)value);
+            address += 2;
+        } else if (access_size == 'w') {
+            neorv32_cpu_store_unsigned_word(address, (uint32_t)value);
+            address += 4;
+        }
+        if (exception) {
+            return;
+        }
+        neorv32_uart0_printf("[0x%x] <= 0x%x\n", address, value);
     }
-    else if (access_size == 'h') {
-      neorv32_cpu_store_unsigned_half(address, (uint16_t)value);
-      address += 2;
-    }
-    else if (access_size == 'w') {
-      neorv32_cpu_store_unsigned_word(address, (uint32_t)value);
-      address += 4;
-    }
-    if (exception) {
-      return;
-    }
-    neorv32_uart0_printf("[0x%x] <= 0x%x\n", address, value);
-  }
 }
 
-
-/**********************************************************************//**
- * Read from memory address
- **************************************************************************/
+/**********************************************************************/ /**
+                                                                          * Read
+                                                                          * from
+                                                                          * memory
+                                                                          * address
+                                                                          **************************************************************************/
 void read_memory(uint32_t address) {
 
-  if (access_size == 0) {
-    neorv32_uart0_printf("Configure data size using 'setup' first.\n");
-    return;
-  }
+    if (access_size == 0) {
+        neorv32_uart0_printf("Configure data size using 'setup' first.\n");
+        return;
+    }
 
-  // perform read access
-  neorv32_uart0_printf("[0x%x] => ", address);
+    // perform read access
+    neorv32_uart0_printf("[0x%x] => ", address);
 
-  exception = 0;
+    exception = 0;
 
-  uint8_t mem_data_b = 0;
-  uint16_t mem_data_h = 0;
-  uint32_t mem_data_w = 0;
-  if (access_size == 'b') { mem_data_b = (uint32_t)neorv32_cpu_load_unsigned_byte(address); }
-  if (access_size == 'h') { mem_data_h = (uint32_t)neorv32_cpu_load_unsigned_half(address); }
-  if (access_size == 'w') { mem_data_w = (uint32_t)neorv32_cpu_load_unsigned_word(address); }
-
-  // show memory content if there was no exception
-  if (exception == 0) {
-    neorv32_uart0_printf("0x");
+    uint8_t mem_data_b = 0;
+    uint16_t mem_data_h = 0;
+    uint32_t mem_data_w = 0;
     if (access_size == 'b') {
-      aux_print_hex_byte(mem_data_b);
+        mem_data_b = (uint32_t)neorv32_cpu_load_unsigned_byte(address);
     }
     if (access_size == 'h') {
-      aux_print_hex_byte((uint8_t)(mem_data_h >>  8));
-      aux_print_hex_byte((uint8_t)(mem_data_h >>  0));
+        mem_data_h = (uint32_t)neorv32_cpu_load_unsigned_half(address);
     }
     if (access_size == 'w') {
-      aux_print_hex_byte((uint8_t)(mem_data_w >> 24));
-      aux_print_hex_byte((uint8_t)(mem_data_w >> 16));
-      aux_print_hex_byte((uint8_t)(mem_data_w >>  8));
-      aux_print_hex_byte((uint8_t)(mem_data_w >>  0));
+        mem_data_w = (uint32_t)neorv32_cpu_load_unsigned_word(address);
     }
-    neorv32_uart0_printf("\n");
-  }
+
+    // show memory content if there was no exception
+    if (exception == 0) {
+        neorv32_uart0_printf("0x");
+        if (access_size == 'b') {
+            aux_print_hex_byte(mem_data_b);
+        }
+        if (access_size == 'h') {
+            aux_print_hex_byte((uint8_t)(mem_data_h >> 8));
+            aux_print_hex_byte((uint8_t)(mem_data_h >> 0));
+        }
+        if (access_size == 'w') {
+            aux_print_hex_byte((uint8_t)(mem_data_w >> 24));
+            aux_print_hex_byte((uint8_t)(mem_data_w >> 16));
+            aux_print_hex_byte((uint8_t)(mem_data_w >> 8));
+            aux_print_hex_byte((uint8_t)(mem_data_w >> 0));
+        }
+        neorv32_uart0_printf("\n");
+    }
 }
 
-
-/**********************************************************************//**
- * Write to memory address
- **************************************************************************/
+/**********************************************************************/ /**
+                                                                          * Write
+                                                                          * to
+                                                                          * memory
+                                                                          * address
+                                                                          **************************************************************************/
 void write_memory(uint32_t address, uint32_t data) {
 
-  if (access_size == 0) {
-    neorv32_uart0_printf("Configure data size using 'setup' first.\n");
-    return;
-  }
-  exception = 0;
+    if (access_size == 0) {
+        neorv32_uart0_printf("Configure data size using 'setup' first.\n");
+        return;
+    }
+    exception = 0;
 
-  if (access_size == 'b') {
-    neorv32_uart0_printf("[0x%x] <= 0x", address);
-    aux_print_hex_byte((uint8_t)data);
-  }
-  if (access_size == 'h') {
-    neorv32_uart0_printf("[0x%x] <= 0x", address);
-    aux_print_hex_byte((uint8_t)(data >> 8));
-    aux_print_hex_byte((uint8_t)(data >> 0));
-  }
-  if (access_size == 'w') {
-    neorv32_uart0_printf("[0x%x] <= 0x", address);
-    aux_print_hex_byte((uint8_t)(data >> 24));
-    aux_print_hex_byte((uint8_t)(data >> 16));
-    aux_print_hex_byte((uint8_t)(data >> 8));
-    aux_print_hex_byte((uint8_t)(data >> 0));
-  }
+    if (access_size == 'b') {
+        neorv32_uart0_printf("[0x%x] <= 0x", address);
+        aux_print_hex_byte((uint8_t)data);
+    }
+    if (access_size == 'h') {
+        neorv32_uart0_printf("[0x%x] <= 0x", address);
+        aux_print_hex_byte((uint8_t)(data >> 8));
+        aux_print_hex_byte((uint8_t)(data >> 0));
+    }
+    if (access_size == 'w') {
+        neorv32_uart0_printf("[0x%x] <= 0x", address);
+        aux_print_hex_byte((uint8_t)(data >> 24));
+        aux_print_hex_byte((uint8_t)(data >> 16));
+        aux_print_hex_byte((uint8_t)(data >> 8));
+        aux_print_hex_byte((uint8_t)(data >> 0));
+    }
 
-  // perform write access
-  if (access_size == 'b') { neorv32_cpu_store_unsigned_byte(address, (uint8_t)data); }
-  if (access_size == 'h') { neorv32_cpu_store_unsigned_half(address, (uint16_t)data); }
-  if (access_size == 'w') { neorv32_cpu_store_unsigned_word(address, (uint32_t)data); }
+    // perform write access
+    if (access_size == 'b') {
+        neorv32_cpu_store_unsigned_byte(address, (uint8_t)data);
+    }
+    if (access_size == 'h') {
+        neorv32_cpu_store_unsigned_half(address, (uint16_t)data);
+    }
+    if (access_size == 'w') {
+        neorv32_cpu_store_unsigned_word(address, (uint32_t)data);
+    }
 
-  if (exception == 0) {
-    neorv32_uart0_printf("\n");
-  }
+    if (exception == 0) {
+        neorv32_uart0_printf("\n");
+    }
 }
 
-
-/**********************************************************************//**
- * Make pretty hexadecimal + ASCII dump (byte-wise)
- **************************************************************************/
+/**********************************************************************/ /**
+                                                                          * Make
+                                                                          * pretty
+                                                                          * hexadecimal
+                                                                          * +
+                                                                          * ASCII
+                                                                          * dump
+                                                                          * (byte-wise)
+                                                                          **************************************************************************/
 void hexdump(uint32_t address) {
 
-  neorv32_uart0_printf("Press key to start dumping. Then, press any key to pause/resume\n");
-  neorv32_uart0_printf("dumping or press 'q' to quit dumping.\n");
-  neorv32_uart0_getc(); // wait for key
+    neorv32_uart0_printf(
+        "Press key to start dumping. Then, press any key to pause/resume\n");
+    neorv32_uart0_printf("dumping or press 'q' to quit dumping.\n");
+    neorv32_uart0_getc(); // wait for key
 
-  // start at 16-byte boundary
-  address &= 0xfffffff0UL;
+    // start at 16-byte boundary
+    address &= 0xfffffff0UL;
 
-  uint8_t tmp;
-  uint8_t line[16];
-  uint32_t i;
-  char c;
-  exception = 0;
+    uint8_t tmp;
+    uint8_t line[16];
+    uint32_t i;
+    char c;
+    exception = 0;
 
-  while (1) {
+    while (1) {
 
-    neorv32_uart0_printf("0x%x |", address);
+        neorv32_uart0_printf("0x%x |", address);
 
-    // get 16 bytes
-    for (i=0; i<16; i++) {
-      line[i] = neorv32_cpu_load_unsigned_byte(address + i);
-      if (exception != 0) {
-        return;
-      }
+        // get 16 bytes
+        for (i = 0; i < 16; i++) {
+            line[i] = neorv32_cpu_load_unsigned_byte(address + i);
+            if (exception != 0) {
+                return;
+            }
+        }
+
+        // print 16 bytes as hexadecimal
+        for (i = 0; i < 16; i++) {
+            neorv32_uart0_putc(' ');
+            aux_print_hex_byte(line[i]);
+        }
+
+        neorv32_uart0_printf(" | ");
+
+        // print 16 bytes as ASCII
+        for (i = 0; i < 16; i++) {
+            tmp = line[i];
+            if ((tmp < 32) || (tmp > 126)) { // not printable?
+                tmp = '.';
+            }
+            neorv32_uart0_putc((char)tmp);
+        }
+
+        neorv32_uart0_printf("\n");
+        address += 16;
+
+        if (neorv32_uart0_char_received()) {
+            c = neorv32_uart0_char_received_get();
+            neorv32_uart0_printf("Dumping paused. Press any key to resume or "
+                                 "press 'q' to quit.\n");
+            c = neorv32_uart0_getc();
+            if (c == 'q') {
+                return;
+            }
+        }
     }
-
-    // print 16 bytes as hexadecimal
-    for (i=0; i<16; i++) {
-      neorv32_uart0_putc(' ');
-      aux_print_hex_byte(line[i]);
-    }
-
-    neorv32_uart0_printf(" | ");
-
-    // print 16 bytes as ASCII
-    for (i=0; i<16; i++) {
-      tmp = line[i];
-      if ((tmp < 32) || (tmp > 126)) { // not printable?
-        tmp = '.';
-      }
-      neorv32_uart0_putc((char)tmp);
-    }
-
-    neorv32_uart0_printf("\n");
-    address += 16;
-
-    if (neorv32_uart0_char_received()) {
-      c = neorv32_uart0_char_received_get();
-      neorv32_uart0_printf("Dumping paused. Press any key to resume or press 'q' to quit.\n");
-      c = neorv32_uart0_getc();
-      if (c == 'q') {
-        return;
-      }
-    }
-  }
 }
 
-
-/**********************************************************************//**
- * Print HEX byte.
- *
- * @param[in] byte Byte to be printed as 2-char hex value.
- **************************************************************************/
+/**********************************************************************/ /**
+                                                                          * Print
+                                                                          * HEX
+                                                                          * byte.
+                                                                          *
+                                                                          * @param[in]
+                                                                          * byte
+                                                                          * Byte
+                                                                          * to
+                                                                          * be
+                                                                          * printed
+                                                                          * as
+                                                                          * 2-char
+                                                                          * hex
+                                                                          * value.
+                                                                          **************************************************************************/
 void aux_print_hex_byte(uint8_t byte) {
 
-  static const char symbols[] = "0123456789abcdef";
+    static const char symbols[] = "0123456789abcdef";
 
-  neorv32_uart0_putc(symbols[(byte >> 4) & 0x0f]);
-  neorv32_uart0_putc(symbols[(byte >> 0) & 0x0f]);
+    neorv32_uart0_putc(symbols[(byte >> 4) & 0x0f]);
+    neorv32_uart0_putc(symbols[(byte >> 0) & 0x0f]);
 }
 
-
-/**********************************************************************//**
- * Memory access exception handler
- **************************************************************************/
+/**********************************************************************/ /**
+                                                                          * Memory
+                                                                          * access
+                                                                          * exception
+                                                                          * handler
+                                                                          **************************************************************************/
 void memory_trap_handler(void) {
 
-  exception = 1;
-  uint32_t cause = neorv32_cpu_csr_read(CSR_MCAUSE);
+    exception = 1;
+    uint32_t cause = neorv32_cpu_csr_read(CSR_MCAUSE);
 
-  neorv32_uart0_printf("[MEMORY ACCESS EXCEPTION!] ");
+    neorv32_uart0_printf("[MEMORY ACCESS EXCEPTION!] ");
 
-  if ((cause == TRAP_CODE_L_MISALIGNED) || (cause == TRAP_CODE_S_MISALIGNED)) {
-    neorv32_uart0_printf("Misaligned address ");
-  }
+    if ((cause == TRAP_CODE_L_MISALIGNED) ||
+        (cause == TRAP_CODE_S_MISALIGNED)) {
+        neorv32_uart0_printf("Misaligned address ");
+    }
 
-  if ((cause == TRAP_CODE_L_ACCESS) || (cause == TRAP_CODE_S_ACCESS)) {
-    neorv32_uart0_printf("Bus access error at ");
-  }
+    if ((cause == TRAP_CODE_L_ACCESS) || (cause == TRAP_CODE_S_ACCESS)) {
+        neorv32_uart0_printf("Bus access error at ");
+    }
 
-  neorv32_uart0_printf("0x%x\n", neorv32_cpu_csr_read(CSR_MTVAL));
+    neorv32_uart0_printf("0x%x\n", neorv32_cpu_csr_read(CSR_MTVAL));
 }

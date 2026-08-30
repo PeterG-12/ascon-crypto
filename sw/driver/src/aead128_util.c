@@ -32,11 +32,15 @@ int get_nth_word(const crypto_block_t *data, int data_len, int index,
     return 0;
 }
 
-void pad_block(crypto_block_t data, unsigned int bit_len){
+void pad_block(crypto_block_t* data, unsigned int bit_len){
+
+    if(bit_len % CRYPTO_BLOCK_BIT_SIZE == 0)
+        return;
+
     unsigned char first_non_full_byte = bit_len / 8;
     unsigned char last_bit = bit_len % 8;
 
-    data.b[first_non_full_byte] |= 0x01 << (8 - last_bit - 1);
+    data->b[first_non_full_byte] |= 0x01 << (last_bit);
 
     return;
 }

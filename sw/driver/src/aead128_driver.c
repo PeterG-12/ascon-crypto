@@ -1,7 +1,9 @@
 #include "../include/aead128_driver.h"
+#include "aead128_hal.h"
 #include "aead128_helper.h"
 #include "aead128_types.h"
 #include <stdint.h>
+#include <stdlib.h>
 #include <sys/unistd.h>
 
 crypto_block_t *encrypt(const crypto_block_t *associated_data,
@@ -10,6 +12,10 @@ crypto_block_t *encrypt(const crypto_block_t *associated_data,
                         crypto_block_t *tag) {
     struct aead128_control control;
     struct aead128_status status;
+    
+    mem_set(&control, 0, sizeof(struct aead128_control));
+    mem_set(&status, 0, sizeof(struct aead128_status));
+
     control.encrypt_mode = 1;
     control.text_word_left = 1;
 
@@ -46,13 +52,13 @@ crypto_block_t *encrypt(const crypto_block_t *associated_data,
     }
 
     control.start = 1;
-
+    control.input_ready = 1;
     commit_write_ctrl_register(&control);
+    control.input_ready = 0;
 
     status = read_status_register();
 
     control.start = 0;
-
     commit_write_ctrl_register(&control);
 
     while (status.finished != 1) {
@@ -104,6 +110,8 @@ crypto_block_t *encrypt(const crypto_block_t *associated_data,
             uint8_t *text_out = read_text();
             mem_copy(text_out, ciphertext + ciphertext_i,
                      CRYPTO_BLOCK_BYTE_SIZE);
+            ciphertext_i++;
+            
             control.text_read = 1;
             commit_write_ctrl_register(&control);
             control.text_read = 0;
@@ -112,10 +120,27 @@ crypto_block_t *encrypt(const crypto_block_t *associated_data,
 
     uint8_t *tag_out = read_tag();
     mem_copy(tag_out, tag, CRYPTO_BLOCK_BYTE_SIZE);
+
+    mem_set(&control, 0, sizeof(struct aead128_control));
+
     return ciphertext;
 }
 
 crypto_block_t *decrypt(const crypto_block_t *associated_data,
                         const crypto_block_t *ciphertext,
                         int associated_data_bit_len, int ciphertext_bit_len,
-                        crypto_block_t *tag) {}
+                        crypto_block_t *tag) {
+    return NULL;
+}
+
+void set_key(crypto_block_t *key) {
+    uint32_t key_array[4];
+    mem_copy(key, key_array, CRYPTO_BLOCK_BYTE_SIZE);
+    provide_key(key_array);
+}
+
+void set_nonce(crypto_block_t *nonce) {
+    uint32_t nonce_array[4];
+    mem_copy(nonce, nonce_array, CRYPTO_BLOCK_BYTE_SIZE);
+    provide_nonce(nonce_array);
+}
