@@ -12,11 +12,9 @@
 
 #include "../include/aead128_driver.h"
 #include "../include/aead128_helper.h"
-#include "aead128_hal.h"
 #include "aead128_types.h"
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/_intsup.h>
 
@@ -263,7 +261,7 @@ int main() {
             crypto_block_t *nonce_block =
                 bytes_to_crypto_block(nonce, CRYPTO_BLOCK_BIT_SIZE);
             set_nonce(nonce_block);
-            
+
             crypto_block_t *key_block =
                 bytes_to_crypto_block(key, CRYPTO_BLOCK_BIT_SIZE);
             set_key(key_block);
@@ -272,8 +270,11 @@ int main() {
             crypto_block_t *ad_block = bytes_to_crypto_block(ad, 11 * 8);
             crypto_block_t tag;
 
-            encrypt(ad_block, pt_block, 11 * 8, 2 * 8, &tag);
+            crypto_block_t *ciphertext =
+                encrypt(ad_block, pt_block, 11 * 8, 2 * 8, &tag);
 
+            crypto_block_t *plaintext =
+                decrypt(ad_block, ciphertext, 11 * 8, 2 * 8, &tag);
             neorv32_uart0_printf("ok\n");
         }
 

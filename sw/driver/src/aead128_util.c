@@ -44,3 +44,13 @@ void pad_block(crypto_block_t* data, unsigned int bit_len){
 
     return;
 }
+
+int check_tag(crypto_block_t *tag_a, crypto_block_t *tag_b){
+    for(int i = 0; i < CRYPTO_BLOCK_BYTE_SIZE / 4; i++){
+        if(tag_a->w[i] != tag_b->w[i]){
+            return -1;
+        }
+    }
+
+    return 0;
+}
