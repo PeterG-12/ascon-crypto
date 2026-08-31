@@ -4,6 +4,7 @@
 #include "aead128_types.h"
 #include <stdint.h>
 
+#define USE_INTERRUPTS
 #define IS_WORD_RDY_INT(status) (status & (1 << 6)) 
 #define IS_FINISH_RDY_INT(status) (status & (1 << 7)) 
 

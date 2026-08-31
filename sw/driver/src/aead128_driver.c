@@ -53,7 +53,7 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
         (text_in->arr_len > 0) ? (text_in->arr_len) : 0;
     int last_text_word_len = text_in->byte_len * 8 % CRYPTO_BLOCK_BIT_SIZE;
 
-    crypto_array_t *text_out = new_crypto_array(text_in_count);
+    crypto_array_t *text_out = new_crypto_array(text_in_count + (int)(text_in_count == 0));
     if (text_out == NULL) {
         print_error("Memory allocation during aead process\n");
         return NULL;
@@ -203,10 +203,9 @@ crypto_array_t *decrypt(const crypto_array_t *associated_data,
     // Only check tag if one is provided
     if (tag != NULL) {
         if (check_tag(tag, resulting_tag) == -1) {
-            mem_set(plaintext, 0, CRYPTO_BLOCK_BYTE_SIZE);
-
-            //print_crypto_array(tag);
-            //print_crypto_array(resulting_tag);
+            for(int i = 0; i < plaintext->arr_len; i++){
+                mem_set(plaintext->blocks[i].b, 0, CRYPTO_BLOCK_BYTE_SIZE);
+            }
 
             free_crypto_array(plaintext);
             free_crypto_array(resulting_tag);
@@ -215,7 +214,6 @@ crypto_array_t *decrypt(const crypto_array_t *associated_data,
             
             return NULL;
         } else {
-            print_error("Tag correct!\n");
             for (int i = 0; i < 16; i++) {
                 neorv32_uart0_printf("%x ", resulting_tag->blocks->b[i]);
             }

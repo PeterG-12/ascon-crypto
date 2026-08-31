@@ -73,11 +73,20 @@ crypto_array_t *bytes_to_crypto_array(uint8_t *bytes, size_t byte_len) {
         return NULL;
 
     int block_count = (byte_len / CRYPTO_BLOCK_BYTE_SIZE) + 1;
+    
 
     crypto_array_t *array = new_crypto_array(block_count);
 
     array->arr_len = block_count;
     array->byte_len = byte_len;
+
+    // Handling special case of empty plaintext
+    if(byte_len == 0){
+        mem_set(&array->blocks[0], 0, CRYPTO_BLOCK_BYTE_SIZE);
+        array->blocks[0].b[0] = 0x01;
+        array->arr_len = 0;
+        return array;
+    }
 
     for (unsigned int i = 0; i < block_count - 1; i++) {
         mem_copy(bytes + (i * CRYPTO_BLOCK_BYTE_SIZE), &array->blocks[i],
@@ -88,7 +97,7 @@ crypto_array_t *bytes_to_crypto_array(uint8_t *bytes, size_t byte_len) {
 
     mem_set(&array->blocks[block_count - 1], 0, CRYPTO_BLOCK_BYTE_SIZE);
     mem_copy(bytes + ((block_count - 1) * CRYPTO_BLOCK_BYTE_SIZE),
-             &array->blocks[block_count - 1], CRYPTO_BLOCK_BYTE_SIZE);
+             &array->blocks[block_count - 1], last_block_len);
 
     array->blocks[block_count - 1].b[last_block_len] = 0x01;
 
