@@ -4,7 +4,6 @@ from cocotb.triggers import RisingEdge
 from cocotbext.axi import AxiLiteBus, AxiLiteMaster
 from util.parseandpad import parse, pad
 from util.parsefile import parse_aead_encrypt_file
-from util.general import invert_bytes_per_word
 import logging
 from cocotb.triggers import Timer
 from typing import TYPE_CHECKING
@@ -32,10 +31,16 @@ SHIFT_CTRL_PT_LEFT = 2
 SHIFT_CTRL_ENCRYPT_MODE = 3
 SHIFT_CTRL_INPUT_READY = 4
 SHIFT_CTRL_TEXT_READ = 5
+SHIFT_CTRL_WORD_RDY_EN = 6
+SHIFT_CTRL_FINISH_RDY_EN = 7
 
 MASK_STATUS_FINISHED = 1 << 0
 MASK_STATUS_TEXT_READY = 1 << 1
 MASK_STATUS_WORD_PROCESSED = 1 << 2
+MASK_STATUS_WORD_INT = 1 << 3
+MASK_STATUS_FINISHED_INT = 1 << 4
+
+USE_INTERRUPTS = 1
 
 if TYPE_CHECKING:
     import copra_stubs
@@ -76,6 +81,8 @@ class ControlSignals:
         self.encrypt_mode = 0
         self.input_ready = 0
         self.text_read = 0
+        self.word_rdy_en = 0
+        self.finish_rdy_en = 0
 
 
 class AxiAsconDriver:
@@ -87,7 +94,7 @@ class AxiAsconDriver:
     async def write_32(self, addr: int, val: int):
         sim_time = get_sim_time(unit="ns")
         self.transactions.append(
-            {"time": sim_time, "op": "write", "addr": addr, "data": val & 0xFFFFFFFF}
+            {"time": sim_time, "op": "write", "addr": addr + 0x44A0_0000, "data": val & 0xFFFFFFFF}
         )
         await self.axi.write(addr, val.to_bytes(4, byteorder="little"))
 
@@ -96,7 +103,7 @@ class AxiAsconDriver:
         sim_time = get_sim_time(unit="ns")
         val = int.from_bytes(res.data, byteorder="little")
         self.transactions.append(
-            {"time": sim_time, "op": "read", "addr": addr, "data": val & 0xFFFFFFFF}
+            {"time": sim_time, "op": "read", "addr": addr + 0x44A0_0000, "data": val & 0xFFFFFFFF}
         )
         return val
 
@@ -125,6 +132,8 @@ async def write_control_register(driver: AxiAsconDriver, control: ControlSignals
         | (control.encrypt_mode << SHIFT_CTRL_ENCRYPT_MODE)
         | (control.input_ready << SHIFT_CTRL_INPUT_READY)
         | (control.text_read << SHIFT_CTRL_TEXT_READ)
+        | (control.word_rdy_en << SHIFT_CTRL_WORD_RDY_EN)
+        | (control.finish_rdy_en << SHIFT_CTRL_FINISH_RDY_EN)
     )
     await driver.write_32(ADDR_CTRL, ctrl_data)
 
@@ -135,6 +144,23 @@ async def read_status_register(driver: AxiAsconDriver):
     text_ready = (status_data & MASK_STATUS_TEXT_READY) >> 1
     word_processed = (status_data & MASK_STATUS_WORD_PROCESSED) >> 2
     return finished, text_ready, word_processed
+
+
+async def read_word_interrupt_status(driver: AxiAsconDriver):
+    status_data = await driver.read_32(ADDR_STATUS)
+
+    return (status_data & MASK_STATUS_WORD_INT) >> 3
+
+
+async def read_finished_interrupt_status(driver: AxiAsconDriver):
+    status_data = await driver.read_32(ADDR_STATUS)
+    return (status_data & MASK_STATUS_FINISHED_INT) >> 4
+
+async def clear_word_interrupt(driver: AxiAsconDriver):
+    await driver.write_32(ADDR_STATUS, 1 << 3)
+
+async def clear_finished_interrupt(driver: AxiAsconDriver):
+    await driver.write_32(ADDR_STATUS, 1 << 4)
 
 
 outp = ""
@@ -201,31 +227,49 @@ async def generate_input(
         control.text_word_left = 0
         await driver.write_128(ADDR_TEXT_IN, text_list[0])
 
-    await write_control_register(driver, control)
+    #await write_control_register(driver, control)
 
     control.start = 1
     control.input_ready = 1
+    control.finish_rdy_en = 1
+    control.word_rdy_en = 1
     await write_control_register(driver, control)
     control.input_ready = 0
 
     finished = 0
     finished, text_ready, word_processed = await read_status_register(driver)
-    logger.debug("Reading status loop")
 
     control.start = 0
     await write_control_register(driver, control)
 
-    while finished != 1:
 
-        word_processed_old = 0
-        finished, text_ready, word_processed = await read_status_register(driver)
-        if word_processed != 1:
-            while not (word_processed_old == 0 and word_processed == 1):
-                word_processed_old = word_processed
-                finished, text_ready, word_processed = await read_status_register(
-                    driver
-                )
-                await RisingEdge(dut.s00_axi_aclk)
+    break_finished = 0
+
+    while finished != 1:
+        
+        if USE_INTERRUPTS:
+            if dut.module_interrupt_o.value == 0:
+                await RisingEdge(dut.module_interrupt_o)
+            word_int = await read_word_interrupt_status(driver)
+
+            if word_int:
+                await clear_word_interrupt(driver)
+
+            finished_int = await read_finished_interrupt_status(driver)
+            if finished_int:
+                await clear_finished_interrupt(driver)
+                break_finished = 1
+
+        else:
+            word_processed_old = 0
+            finished, text_ready, word_processed = await read_status_register(driver)
+            if word_processed != 1:
+                while not (word_processed_old == 0 and word_processed == 1):
+                    word_processed_old = word_processed
+                    finished, text_ready, word_processed = await read_status_register(
+                        driver
+                    )
+                    await RisingEdge(dut.s00_axi_aclk)
 
         await driver.write_32(ADDR_TEXT_LEN, plen)
 
@@ -270,13 +314,9 @@ async def generate_input(
         )
         control.input_ready = 0
 
-        text_ready_old = text_ready
 
         finished, text_ready, word_processed = await read_status_register(driver)
-
-        logger.debug(f"Vals: {text_ready}   {text_ready_old}")
-
-        if text_ready_old == 0 and text_ready == 1:
+        if text_ready == 1:
             text_out = await driver.read_128(ADDR_TEXT_OUT)
             logger.debug(f"TEXT_OUT: {text_out} Plen: {plen}")
 
@@ -286,7 +326,7 @@ async def generate_input(
             logger.debug(
                 "Current Output: "
                 + "   "
-                + invert_bytes_per_word(output)
+                + output
                 + "  "
                 + str(plen)
             )
@@ -299,6 +339,9 @@ async def generate_input(
                 control
             )
             control.text_read = 0
+
+        if break_finished == 1:
+            break
 
         logger.debug(f"Finished: {finished}")
 
@@ -430,7 +473,7 @@ async def test_ascon_aead_single(dut):
         ad = obj.ad
         pt = obj.pt
 
-        logger.warning(f"{ad}   {pt}")
+        
         logger.info("Starting round: %s" % count)
 
 
@@ -440,3 +483,5 @@ async def test_ascon_aead_single(dut):
 
         if count == TESTS_TO_RUN:
             break
+
+        

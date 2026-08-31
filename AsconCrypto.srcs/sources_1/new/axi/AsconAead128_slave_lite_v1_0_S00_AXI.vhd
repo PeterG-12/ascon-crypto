@@ -79,7 +79,10 @@ entity AsconAead128_slave_lite_v1_0_S00_AXI is
     S_AXI_RVALID : out std_logic;
     -- Read ready. This signal indicates that the master can
     -- accept the read data and response information.
-    S_AXI_RREADY : in std_logic
+    S_AXI_RREADY : in std_logic;
+
+    -- Interrupt signal
+    module_interrupt_o : out std_logic
   );
 end AsconAead128_slave_lite_v1_0_S00_AXI;
 
@@ -172,6 +175,9 @@ architecture arch_imp of AsconAead128_slave_lite_v1_0_S00_AXI is
 
   signal text_o : std_logic_vector(127 downto 0) := (others => '0');
   signal tag_o  : std_logic_vector(127 downto 0) := (others => '0');
+
+  signal latched_finished_rdy_int : std_logic := '0';
+  signal latched_word_rdy_int     : std_logic := '0';
 
 begin
   -- I/O Connections assignments
@@ -605,22 +611,10 @@ begin
     slv_reg17 when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10001") else
     slv_reg18 when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10010") else
 
-    --latched_text_o(31 downto 0) when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10011") else
-    --latched_text_o(63 downto 32) when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10100") else
-    --latched_text_o(95 downto 64) when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10101") else
-    --latched_text_o(127 downto 96) when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10110") else
-
     latched_text_o(31 downto 0) when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10101") else
     latched_text_o(63 downto 32) when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10110") else
     latched_text_o(95 downto 64) when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10011") else
     latched_text_o(127 downto 96) when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10100") else
-
-
-    --latched_tag_o(31 downto 0) when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "10111") else
-    --latched_tag_o(63 downto 32) when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "11000") else
-    --latched_tag_o(95 downto 64) when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "11001") else
-    --latched_tag_o(127 downto 96) when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "11010") else
-
 
     latched_tag_o(31 downto 0) when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "11001") else
     latched_tag_o(63 downto 32) when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "11010") else
@@ -639,6 +633,7 @@ begin
   assoc_data_i <= slv_reg11 & slv_reg10 & slv_reg13 & slv_reg12;
   text_i       <= slv_reg15 & slv_reg14 & slv_reg17 & slv_reg16;
   text_len_i   <= to_integer(unsigned(slv_reg18));
+
   ascon_aead_inst : entity work.ascon_aead
     port map
     (
@@ -661,16 +656,19 @@ begin
       text_o                      => text_o,
       tag_o                       => tag_o
     );
-  -- Latch 1-cycle core pulses into registers
+
+  -- Handle latching and clearing 1-cycle signals
   process (S_AXI_ACLK)
   begin
     if rising_edge(S_AXI_ACLK) then
       if S_AXI_ARESETN = '0' then
-        latched_finished       <= '0';
-        latched_text_ready     <= '0';
-        latched_word_processed <= '0';
-        latched_text_o         <= (others => '0');
-        latched_tag_o          <= (others => '0');
+        latched_finished         <= '0';
+        latched_text_ready       <= '0';
+        latched_word_processed   <= '0';
+        latched_text_o           <= (others => '0');
+        latched_tag_o            <= (others => '0');
+        latched_finished_rdy_int <= '0';
+        latched_word_rdy_int     <= '0';
       else
 
         clear_text_latch_prev <= slv_reg0(5);
@@ -682,11 +680,18 @@ begin
 
         if word_processed_o = '1' then
           latched_word_processed <= '1';
+          if slv_reg0(6) then -- only if interrupt is enabled
+            latched_word_rdy_int <= '1';
+          end if;
         end if;
 
         if finished_o = '1' then
           latched_finished <= '1';
           latched_tag_o    <= tag_o;
+
+          if slv_reg0(7) then -- only if interrupt is enabled
+            latched_finished_rdy_int <= '1';
+          end if;
         end if;
         -- Confirm text read
         if clear_text_latch_prev = '0' and slv_reg0(5) = '1' then
@@ -696,10 +701,24 @@ begin
 
         -- Clear latches when a new start command is written to slv_reg0
         if (S_AXI_WVALID = '1' and mem_logic = "00000" and S_AXI_WDATA(0) = '1') then
-          latched_finished       <= '0';
-          latched_text_ready     <= '0';
-          latched_word_processed <= '0';
+          latched_finished         <= '0';
+          latched_text_ready       <= '0';
+          latched_word_processed   <= '0';
+          latched_word_rdy_int     <= '0';
+          latched_finished_rdy_int <= '0';
         end if;
+
+        -- Clear interrupt register when a the rdy_int bit is writen to
+        if (S_AXI_WVALID = '1' and mem_logic = "00001") then
+          if (S_AXI_WDATA(3) = '1') then -- Clear word ready
+            latched_word_rdy_int <= '0';
+          elsif (S_AXI_WDATA(4) = '1') then -- Clear finished ready
+            latched_finished_rdy_int <= '0';
+          end if;
+        end if;
+
+        module_interrupt_o <= latched_finished_rdy_int or latched_word_rdy_int;
+
       end if;
     end if;
   end process;
@@ -707,7 +726,9 @@ begin
   status_register(0)           <= latched_finished or finished_o;
   status_register(1)           <= latched_text_ready or text_ready_o;
   status_register(2)           <= latched_word_processed or word_processed_o;
-  status_register(31 downto 3) <= (others => '0');
+  status_register(3)           <= latched_word_rdy_int;
+  status_register(4)           <= latched_finished_rdy_int;
+  status_register(31 downto 5) <= (others => '0');
   -- User logic ends
 
 end arch_imp;
