@@ -2,6 +2,7 @@
 #include "aead128_types.h"
 #include "aead128_util.h"
 #include "neorv32_uart.h"
+#include <stddef.h>
 #include <stdlib.h>
 #include <sys/_types.h>
 
@@ -25,32 +26,73 @@ void *mem_set(void *restrict destination, uint8_t byte, unsigned int len) {
     return dst;
 }
 
-crypto_block_t *bytes_to_crypto_block(uint8_t *bytes, unsigned int bit_len) {
+
+crypto_array_t *new_crypto_array(unsigned int block_count){
+    crypto_array_t *array = (crypto_array_t*)malloc(sizeof(crypto_array_t));
+    if(array == NULL){
+        print_error("Memory allocation during bytes_to_crypto_array");
+        return NULL;
+    }
+
+    array->blocks =
+        (crypto_block_t *)malloc(block_count * sizeof(crypto_block_t));
+    if (array->blocks == NULL) {
+        print_error("Memory allocation during bytes_to_crypto_array");
+        free(array);
+        return NULL;
+    }
+
+
+    array->arr_len = block_count;
+    // Assume filled crypto block
+    array->byte_len = block_count * CRYPTO_BLOCK_BYTE_SIZE;
+
+    return array;
+}
+
+void print_crypto_array(crypto_array_t* array){
+    for(unsigned int i = 0; i < array->arr_len; i++){
+        for(int j = 0; j < CRYPTO_BLOCK_BYTE_SIZE; j++){
+            neorv32_uart0_printf("%x ", array->blocks[i].b[j]);
+            if(j % 6 == 5){
+                neorv32_uart0_printf("\n");
+            }
+        }
+    }
+}
+
+void free_crypto_array(crypto_array_t* array){
+    free(array->blocks);
+    array->blocks = NULL;
+    free(array);
+    array = NULL;
+}
+
+crypto_array_t *bytes_to_crypto_array(uint8_t *bytes, size_t byte_len) {
     if (bytes == NULL)
         return NULL;
 
-    int block_count = (bit_len / CRYPTO_BLOCK_BIT_SIZE) + 1;
+    int block_count = (byte_len / CRYPTO_BLOCK_BYTE_SIZE) + 1;
 
-    crypto_block_t *blocks =
-        (crypto_block_t *)malloc(block_count * sizeof(crypto_block_t));
-    if (blocks == NULL) {
-        return NULL;
-    }
+    crypto_array_t *array = new_crypto_array(block_count);
+
+    array->arr_len = block_count;
+    array->byte_len = byte_len;
 
     for (unsigned int i = 0; i < block_count - 1; i++) {
-        mem_copy(bytes + (i * CRYPTO_BLOCK_BYTE_SIZE), &blocks[i],
+        mem_copy(bytes + (i * CRYPTO_BLOCK_BYTE_SIZE), &array->blocks[i],
                  CRYPTO_BLOCK_BYTE_SIZE);
     }
 
-    int last_block_len = bit_len % CRYPTO_BLOCK_BIT_SIZE;
+    int last_block_len = byte_len % CRYPTO_BLOCK_BYTE_SIZE;
 
-    mem_set(&blocks[block_count - 1], 0, CRYPTO_BLOCK_BYTE_SIZE);
+    mem_set(&array->blocks[block_count - 1], 0, CRYPTO_BLOCK_BYTE_SIZE);
     mem_copy(bytes + ((block_count - 1) * CRYPTO_BLOCK_BYTE_SIZE),
-             &blocks[block_count - 1], CRYPTO_BLOCK_BYTE_SIZE);
+             &array->blocks[block_count - 1], CRYPTO_BLOCK_BYTE_SIZE);
 
-    pad_block(&blocks[block_count - 1], last_block_len);
+    array->blocks[block_count - 1].b[last_block_len] = 0x01;
 
-    return blocks;
+    return array;
 }
 
 uint8_t hex_to_val(char c) {
@@ -71,6 +113,4 @@ void hex_to_bytes(const char *hex_string, uint8_t byte_arr[],
     }
 }
 
-void print_error(const char* error_msg){
-    neorv32_uart0_printf(error_msg);
-}
+void print_error(const char *error_msg) { neorv32_uart0_printf(error_msg); }

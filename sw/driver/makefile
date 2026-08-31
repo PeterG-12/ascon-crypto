@@ -17,7 +17,7 @@ USER_FLAGS += -ggdb -gdwarf-3
 
  
 # Adjust processor IMEM size
-USER_FLAGS += -Wl,--defsym,__neorv32_rom_size=16k
+USER_FLAGS += -Wl,--defsym,__neorv32_rom_size=32k
 
 # Adjust processor DMEM size
 USER_FLAGS += -Wl,--defsym,__neorv32_ram_size=16k

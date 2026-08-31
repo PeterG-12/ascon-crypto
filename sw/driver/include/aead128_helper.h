@@ -2,11 +2,16 @@
 
 #include "../src/aead128_util.h"
 #include "aead128_types.h"
+#include <stddef.h>
 #include <stdint.h>
+#include <sys/_intsup.h>
 #include <sys/_types.h>
 #include <unistd.h>
 
-crypto_block_t *bytes_to_crypto_block(uint8_t *bytes, unsigned int bit_len);
+void print_crypto_array(crypto_array_t* array);
+void free_crypto_array(crypto_array_t* array);
+crypto_array_t *new_crypto_array(unsigned int block_count);
+crypto_array_t *bytes_to_crypto_array(uint8_t *bytes, size_t byte_len);
 void *mem_copy(const void *restrict source,
                              void *restrict destination, unsigned int len);
 void *mem_set(void *restrict destination, uint8_t byte,
