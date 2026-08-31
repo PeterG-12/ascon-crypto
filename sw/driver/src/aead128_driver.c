@@ -7,11 +7,29 @@
 #include <string.h>
 #include <sys/unistd.h>
 
+static volatile uint8_t interrupt_fired;
+
+void machine_interrupt_handler(void) {
+    struct aead128_status status = read_status_register();
+    if(status.word_rdy_int){
+        interrupt_fired = 1;
+        clear_word_rdy_interrupt();
+    }
+
+    if(status.finished_rdy_int){
+        interrupt_fired = 1;
+        clear_finished_rdy_interrupt();
+    }
+}
+
+
+
 crypto_block_t *aead_process(const crypto_block_t *associated_data,
                              const crypto_block_t *text_in,
                              int associated_data_bit_len, int text_in_bit_len,
                              crypto_block_t *tag, uint8_t encrypt_mode) {
-
+    
+    interrupt_fired = 0;
     struct aead128_control control;
     struct aead128_status status;
 
@@ -20,6 +38,9 @@ crypto_block_t *aead_process(const crypto_block_t *associated_data,
 
     control.encrypt_mode = encrypt_mode;
     control.text_word_left = 1;
+
+    control.word_rdy_en = 1;
+    control.finished_rdy_en = 1;
 
     commit_write_ctrl_register(&control);
 
@@ -32,6 +53,7 @@ crypto_block_t *aead_process(const crypto_block_t *associated_data,
     crypto_block_t *text_out =
         (crypto_block_t *)malloc(text_in_count * sizeof(crypto_block_t));
     if (text_out == NULL) {
+        print_error("Memory allocation during aead process\n");
         return NULL;
     }
 
@@ -64,15 +86,37 @@ crypto_block_t *aead_process(const crypto_block_t *associated_data,
 
     while (status.finished != 1) {
 
-        int word_processed_old = 0;
+
         status = read_status_register();
         if (status.word_processed != 1) {
-            // Wait for word_processed rising edge
-            while (!(word_processed_old == 0 && status.word_processed == 1)) {
-                word_processed_old = status.word_processed;
-                status = read_status_register();
-            }
+            #ifdef USE_INTERRUPTS
+                while(status.word_processed != 1){
+                    
+                    neorv32_cpu_csr_clr(CSR_MSTATUS, 1 << CSR_MSTATUS_MIE);
+                    if(!interrupt_fired)
+                        asm volatile("wfi");
+                    neorv32_cpu_csr_set(CSR_MSTATUS, 1 << CSR_MSTATUS_MIE);
+
+
+                    interrupt_fired = 0;
+                    status = read_status_register();
+                    if (status.finished == 1){
+                        goto tag_read;
+                    }
+                }
+            #endif
+
+            #ifndef USE_INTERRUPTS
+                int word_processed_old = 0;
+                // Wait for word_processed rising edge
+                while (!(word_processed_old == 0 && status.word_processed == 1)) {
+                    word_processed_old = status.word_processed;
+                    status = read_status_register();
+                }
+            #endif
+            
         }
+        
 
         write_text_len(plen);
 
@@ -104,10 +148,9 @@ crypto_block_t *aead_process(const crypto_block_t *associated_data,
         commit_write_ctrl_register(&control);
         control.input_ready = 0;
 
-        int text_ready_old = status.text_ready;
         status = read_status_register();
 
-        if (text_ready_old == 0 && status.text_ready == 1) {
+        if (status.text_ready == 1) {
             uint8_t *text_out_read_buffer = read_text();
             mem_copy(text_out_read_buffer, text_out + text_out_i, CRYPTO_BLOCK_BYTE_SIZE);
             
@@ -121,8 +164,12 @@ crypto_block_t *aead_process(const crypto_block_t *associated_data,
             control.text_read = 0;
         }
     }
+    uint8_t *tag_out = NULL;
+    #ifdef USE_INTERRUPTS
+        tag_read:
+    #endif
 
-    uint8_t *tag_out = read_tag();
+    tag_out = read_tag();
     mem_copy(tag_out, tag, CRYPTO_BLOCK_BYTE_SIZE);
 
     mem_set(&control, 0, sizeof(struct aead128_control));
@@ -149,6 +196,7 @@ crypto_block_t *decrypt(const crypto_block_t *associated_data,
 
     crypto_block_t *resulting_tag = (crypto_block_t*)malloc(sizeof(crypto_block_t));
     if(resulting_tag == NULL){
+        print_error("Memory allocation failure during decryption process\n");
         return NULL;
     }
     crypto_block_t *plaintext =
@@ -159,6 +207,10 @@ crypto_block_t *decrypt(const crypto_block_t *associated_data,
     if (tag != NULL) {
         if(check_tag(tag, resulting_tag) == -1){
             mem_set(plaintext, 0, CRYPTO_BLOCK_BYTE_SIZE);
+            free(plaintext);
+            plaintext = NULL;
+            free(resulting_tag);
+            resulting_tag = NULL;
             return NULL;
         }
     }

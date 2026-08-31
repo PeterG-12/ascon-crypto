@@ -14,3 +14,4 @@ void *mem_set(void *restrict destination, uint8_t byte,
 
 uint8_t hex_to_val(char c);
 void hex_to_bytes(const char* hex_string, uint8_t byte_arr[], unsigned int len);
+void print_error(const char* error_msg);

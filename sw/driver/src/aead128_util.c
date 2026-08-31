@@ -1,4 +1,5 @@
 #include "aead128_util.h"
+#include "aead128_helper.h"
 #include "aead128_types.h"
 #include <stdint.h>
 #include <sys/unistd.h>
@@ -16,7 +17,7 @@ void bytes_to_word(uint8_t bytes[16], uint32_t array[4]) {
 int get_nth_word(const crypto_block_t *data, int data_len, int index,
                  uint32_t word_buffer[4]) {
 
-    uint8_t bytes[16];
+    uint8_t bytes[16] = {0};
 
     // Check the bounds to avoid dereferencing invalid memory
     if ((data + index * 16 + 15) - data > data_len) {

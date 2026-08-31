@@ -15,12 +15,16 @@ struct aead128_control {
     uint8_t encrypt_mode;
     uint8_t input_ready;
     uint8_t text_read;
+    uint8_t word_rdy_en;
+    uint8_t finished_rdy_en;
 };
 
 struct aead128_status {
     uint8_t finished;
     uint8_t text_ready;
     uint8_t word_processed;
+    uint8_t word_rdy_int;
+    uint8_t finished_rdy_int;
 };
 
 void write_32(uint32_t address, const uint32_t data);
@@ -38,5 +42,6 @@ uint8_t* read_tag();
 
 void commit_write_ctrl_register(struct aead128_control *state);
 struct aead128_status read_status_register(void);
-
+void clear_word_rdy_interrupt();
+void clear_finished_rdy_interrupt();
 

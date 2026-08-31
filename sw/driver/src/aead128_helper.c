@@ -1,6 +1,7 @@
 #include "../include/aead128_helper.h"
 #include "aead128_types.h"
 #include "aead128_util.h"
+#include "neorv32_uart.h"
 #include <stdlib.h>
 #include <sys/_types.h>
 
@@ -68,4 +69,8 @@ void hex_to_bytes(const char *hex_string, uint8_t byte_arr[],
         byte_arr[i] = (hex_to_val(hex_string[2 * i]) << 4) |
                       hex_to_val(hex_string[2 * i + 1]);
     }
+}
+
+void print_error(const char* error_msg){
+    neorv32_uart0_printf(error_msg);
 }
