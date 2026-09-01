@@ -1,3 +1,3 @@
 ## Baremetal ASCON AEAD128 driver
 
-Written for usaging the hardware module over axi-lite
+Written for using the hardware module over axi-lite
