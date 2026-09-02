@@ -4,7 +4,16 @@
 #include "aead128_types.h"
 #include <stdint.h>
 
-#define USE_INTERRUPTS
+
+#define CTRL_START        (1 << 0)
+#define CTRL_START        (1 << 0)
+#define CTRL_START        (1 << 0)
+#define CTRL_START        (1 << 0)
+#define CTRL_ENCRYPT      (1 << 3)
+#define CTRL_INPUT_READY  (1 << 4)
+#define CTRL_TEXT_READ    (1 << 5)
+
+
 #define IS_WORD_RDY_INT(status) (status & (1 << 6)) 
 #define IS_FINISH_RDY_INT(status) (status & (1 << 7)) 
 

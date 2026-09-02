@@ -12,10 +12,26 @@ void print_crypto_array(crypto_array_t* array);
 void free_crypto_array(crypto_array_t* array);
 crypto_array_t *new_crypto_array(unsigned int block_count);
 crypto_array_t *bytes_to_crypto_array(uint8_t *bytes, size_t byte_len);
-void *mem_copy(const void *restrict source,
-                             void *restrict destination, unsigned int len);
-void *mem_set(void *restrict destination, uint8_t byte,
-                            unsigned int len);
+
+static inline void *mem_copy(const void *restrict source, void *restrict destination,
+               unsigned int len) {
+    const uint8_t *src = (uint8_t *)source;
+    uint8_t *dst = (uint8_t *)destination;
+    for (unsigned int i = 0; i < len; i++) {
+        dst[i] = src[i];
+    }
+
+    return dst;
+}
+
+static inline void *mem_set(void *restrict destination, uint8_t byte, unsigned int len) {
+    uint8_t *dst = (uint8_t *)destination;
+    for (unsigned int i = 0; i < len; i++) {
+        dst[i] = byte;
+    }
+
+    return dst;
+}
 
 uint8_t hex_to_val(char c);
 void hex_to_bytes(const char* hex_string, uint8_t byte_arr[], unsigned int len);

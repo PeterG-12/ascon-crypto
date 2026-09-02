@@ -103,7 +103,7 @@ int main() {
     }
 
     char *command;
-
+    
     command = strtok(buffer, strtok_delimiter);
 
     if (!strcmp(command, "pt")) {
@@ -169,7 +169,11 @@ void do_encryption_decryption(uint8_t pt[32], uint8_t ad[32],
   }
   neorv32_uart0_printf("\n");
 
+
+  uint64_t before = neorv32_cpu_get_cycle();
   crypto_array_t *ciphertext = encrypt(ad_block, pt_block, tag);
+  uint64_t after = neorv32_cpu_get_cycle();
+  neorv32_uart0_printf("Encryption took: %d cycles\n", after - before);
 
   neorv32_uart0_printf("Tag produced: \n");
   print_crypto_array(tag);
@@ -180,8 +184,15 @@ void do_encryption_decryption(uint8_t pt[32], uint8_t ad[32],
 
   neorv32_uart0_printf("\n");
 
+  before = neorv32_cpu_get_cycle();
   crypto_array_t *plaintext = decrypt(ad_block, ciphertext, tag);
+  after = neorv32_cpu_get_cycle();
+  neorv32_uart0_printf("Decryption took: %d cycles\n", after - before);
+
+
   neorv32_uart0_printf("Plaintext after processing: \n");
+
+
 
   print_crypto_array(plaintext);
   neorv32_uart0_printf("\n");

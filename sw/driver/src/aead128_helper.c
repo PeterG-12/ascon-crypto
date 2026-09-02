@@ -6,27 +6,6 @@
 #include <stdlib.h>
 #include <sys/_types.h>
 
-void *mem_copy(const void *restrict source, void *restrict destination,
-               unsigned int len) {
-    const uint8_t *src = (uint8_t *)source;
-    uint8_t *dst = (uint8_t *)destination;
-    for (unsigned int i = 0; i < len; i++) {
-        dst[i] = src[i];
-    }
-
-    return dst;
-}
-
-void *mem_set(void *restrict destination, uint8_t byte, unsigned int len) {
-    uint8_t *dst = (uint8_t *)destination;
-    for (unsigned int i = 0; i < len; i++) {
-        dst[i] = byte;
-    }
-
-    return dst;
-}
-
-
 crypto_array_t *new_crypto_array(unsigned int block_count){
     crypto_array_t *array = (crypto_array_t*)malloc(sizeof(crypto_array_t));
     if(array == NULL){
