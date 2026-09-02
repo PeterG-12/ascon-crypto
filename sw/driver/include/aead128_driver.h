@@ -5,26 +5,17 @@
 #include <stdint.h>
 
 
-#define CTRL_START        (1 << 0)
-#define CTRL_START        (1 << 0)
-#define CTRL_START        (1 << 0)
-#define CTRL_START        (1 << 0)
-#define CTRL_ENCRYPT      (1 << 3)
-#define CTRL_INPUT_READY  (1 << 4)
-#define CTRL_TEXT_READ    (1 << 5)
-
-
 #define IS_WORD_RDY_INT(status) (status & (1 << 6)) 
 #define IS_FINISH_RDY_INT(status) (status & (1 << 7)) 
 
 crypto_array_t *encrypt(const crypto_array_t *associated_data,
                         const crypto_array_t *plaintext,
-                        crypto_array_t *tag);
+                        crypto_array_t *tag, crypto_array_t *text_out_buffer);
 crypto_array_t *decrypt(const crypto_array_t *associated_data,
                         const crypto_array_t *ciphertext,
-                        crypto_array_t *tag);
+                        crypto_array_t *tag, crypto_array_t *text_out_buffer, crypto_array_t* resulting_tag_buffer);
 crypto_array_t *aead_process(const crypto_array_t *associated_data,
-                             const crypto_array_t *ciphertext, crypto_array_t *tag,
+                             const crypto_array_t *ciphertext, crypto_array_t *tag, crypto_array_t *text_out_buffer,
                              uint8_t encrypt_mode);
 
 void set_key(crypto_array_t *key);

@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #include <sys/_types.h>
 
+void print_error(const char *error_msg) { neorv32_uart0_printf(error_msg); }
+
+
 crypto_array_t *new_crypto_array(unsigned int block_count){
     crypto_array_t *array = (crypto_array_t*)malloc(sizeof(crypto_array_t));
     if(array == NULL){
@@ -96,7 +99,6 @@ void hex_to_bytes(const char *hex_string, uint8_t byte_arr[],
     }
 }
 
-void print_error(const char *error_msg) { neorv32_uart0_printf(error_msg); }
 
 void string_to_bytes(const char* string, size_t len, uint8_t bytes[32]){
     size_t i;

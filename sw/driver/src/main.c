@@ -161,7 +161,10 @@ void do_encryption_decryption(uint8_t pt[32], uint8_t ad[32],
 
   crypto_array_t *pt_block = bytes_to_crypto_array(pt, pt_byte_len);
   crypto_array_t *ad_block = bytes_to_crypto_array(ad, ad_byte_len);
+  crypto_array_t *text_out_buffer = bytes_to_crypto_array(ad, pt_byte_len);
+
   crypto_array_t *tag = new_crypto_array(1);
+  crypto_array_t *resulting_tag_buffer = new_crypto_array(1);
 
   neorv32_uart0_printf("Plaintext before processing: \n");
   for (size_t i = 0; i < pt_byte_len; i++) {
@@ -171,7 +174,7 @@ void do_encryption_decryption(uint8_t pt[32], uint8_t ad[32],
 
 
   uint64_t before = neorv32_cpu_get_cycle();
-  crypto_array_t *ciphertext = encrypt(ad_block, pt_block, tag);
+  crypto_array_t *ciphertext = encrypt(ad_block, pt_block, tag, text_out_buffer);
   uint64_t after = neorv32_cpu_get_cycle();
   neorv32_uart0_printf("Encryption took: %d cycles\n", after - before);
 
@@ -185,7 +188,7 @@ void do_encryption_decryption(uint8_t pt[32], uint8_t ad[32],
   neorv32_uart0_printf("\n");
 
   before = neorv32_cpu_get_cycle();
-  crypto_array_t *plaintext = decrypt(ad_block, ciphertext, tag);
+  crypto_array_t *plaintext = decrypt(ad_block, ciphertext, tag, text_out_buffer, resulting_tag_buffer);
   after = neorv32_cpu_get_cycle();
   neorv32_uart0_printf("Decryption took: %d cycles\n", after - before);
 
@@ -204,4 +207,6 @@ void do_encryption_decryption(uint8_t pt[32], uint8_t ad[32],
   free_crypto_array(ciphertext);
   free_crypto_array(plaintext);
   free_crypto_array(tag);
+  free_crypto_array(resulting_tag_buffer);
+  free_crypto_array(text_out_buffer);
 }

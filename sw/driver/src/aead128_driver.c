@@ -9,20 +9,22 @@
 static volatile uint8_t interrupt_fired;
 
 void machine_interrupt_handler(void) {
-    struct aead128_status status = read_status_register();
-    if (status.word_rdy_int) {
+    uint32_t stat = READ_STAT();
+    //if (status.word_rdy_int) {
+    if (CHECK_STAT(stat, STAT_WRD_RDY_INT)) {
         interrupt_fired = 1;
         clear_word_rdy_interrupt();
     }
 
-    if (status.finished_rdy_int) {
+    //if (status.finished_rdy_int) {
+    if (CHECK_STAT(stat, STAT_FIN_RDY_INT)) {
         interrupt_fired = 1;
         clear_finished_rdy_interrupt();
     }
 }
 
 crypto_array_t *aead_process(const crypto_array_t *associated_data,
-                             const crypto_array_t *text_in, crypto_array_t *tag,
+                             const crypto_array_t *text_in, crypto_array_t *tag, crypto_array_t *text_out_buffer,
                              uint8_t encrypt_mode) {
 
     interrupt_fired = 0;
@@ -44,8 +46,7 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
     //control.text_word_left = 1;
 
 #ifdef USE_INTERRUPTS
-    control.word_rdy_en = 1;
-    control.finished_rdy_en = 1;
+    SET_CTRL(control, CTRL_FIN_RDY_EN | CTRL_WORD_RDY_EN);
 #endif
 
     //commit_write_ctrl_register(&control);
@@ -60,15 +61,9 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
     int text_in_count =
         (text_in->arr_len > 0) ? (text_in->arr_len) : 0;
     int last_text_word_len = text_in->byte_len * 8 % CRYPTO_BLOCK_BIT_SIZE;
-
-    crypto_array_t *text_out = new_crypto_array(text_in_count + (int)(text_in_count == 0));
-    if (text_out == NULL) {
-        print_error("Memory allocation during aead process\n");
-        return NULL;
-    }
     
-    text_out->byte_len = text_in->byte_len;
-    text_out->arr_len = (text_in->byte_len / 16) + (int)(text_in->byte_len > 0);
+    text_out_buffer->byte_len = text_in->byte_len;
+    text_out_buffer->arr_len = (text_in->byte_len / 16) + (int)(text_in->byte_len > 0);
 
     int text_in_i = 0;
     int text_out_i = 0;
@@ -120,7 +115,8 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
         if (!CHECK_STAT(stat, STAT_WRD_PROC)) {
 
         #ifdef USE_INTERRUPTS
-            while (status.word_processed != 1) {
+            //while (status.word_processed != 1) {
+            while (!CHECK_STAT(stat, STAT_WRD_PROC)) {
 
                 neorv32_cpu_csr_clr(CSR_MSTATUS, 1 << CSR_MSTATUS_MIE);
                 if (!interrupt_fired)
@@ -128,8 +124,8 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
                 neorv32_cpu_csr_set(CSR_MSTATUS, 1 << CSR_MSTATUS_MIE);
 
                 interrupt_fired = 0;
-                status = read_status_register();
-                if (status.finished == 1) {
+                stat = READ_STAT();
+                if (CHECK_STAT(stat, STAT_FIN)) {
                     goto tag_read;
                 }
             }
@@ -145,6 +141,14 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
                     word_processed_old = stat & STAT_WRD_PROC;
                     word_processed_old = (int)(word_processed_old > 0);
                     //status = read_status_register();
+                    __asm__ volatile(
+                        "nop\n"
+                        "nop\n"
+                        "nop\n"
+                        "nop\n"
+                        "nop\n"
+                        "nop\n"
+                    );
                     stat = READ_STAT();
                 }
             }
@@ -196,10 +200,11 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
 
         //if (status.text_ready == 1) {
         if (CHECK_STAT(stat, STAT_TXT_RDY)) {
-            uint32_t text_out_read_buffer[4];
-            read_text(text_out_read_buffer);
-            mem_copy(text_out_read_buffer, text_out->blocks[text_out_i].b,
-                     CRYPTO_BLOCK_BYTE_SIZE);
+            //uint32_t text_out_read_buffer[4];
+            read_text(text_out_buffer->blocks[text_out_i].w);
+            // CRYPTO_BLOCK_BYTE_SIZE is assumed to be multiple of 4 always so NULL is not checked
+            /*word_mem_copy(text_out_read_buffer, text_out->blocks[text_out_i].w,
+                     CRYPTO_BLOCK_BYTE_SIZE);*/
 
             text_out_i++;
 
@@ -211,13 +216,13 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
             CLR_CTRL(control, CTRL_TEXT_READ);
         }
     }
-    uint32_t tag_out[4];
+    //uint32_t tag_out[4];
     #ifdef USE_INTERRUPTS
     tag_read:
     #endif
 
-    read_tag(tag_out);
-    mem_copy(tag_out, tag->blocks[0].b, CRYPTO_BLOCK_BYTE_SIZE);
+    read_tag(tag->blocks[0].w);
+    //word_mem_copy(tag_out, tag->blocks[0].b, CRYPTO_BLOCK_BYTE_SIZE);
 
     //mem_set(&control, 0, sizeof(struct aead128_control));
     //commit_write_ctrl_register(&control);
@@ -225,48 +230,36 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
     COMMIT_CTRL(control);
 
 
-    return text_out;
+    return text_out_buffer;
 }
 
 crypto_array_t *encrypt(const crypto_array_t *associated_data,
-                        const crypto_array_t *plaintext, crypto_array_t *tag) {
+                        const crypto_array_t *plaintext, crypto_array_t *tag, crypto_array_t *text_out_buffer) {
 
     crypto_array_t *ciphertext =
-        aead_process(associated_data, plaintext, tag, 1);
+        aead_process(associated_data, plaintext, tag, text_out_buffer, 1);
     return ciphertext;
 }
 
 crypto_array_t *decrypt(const crypto_array_t *associated_data,
-                        const crypto_array_t *ciphertext, crypto_array_t *tag) {
-
-    crypto_array_t *resulting_tag = new_crypto_array(1);
-    if (resulting_tag == NULL) {
-        print_error("Memory allocation failure during decryption process\n");
-        return NULL;
-    }
-
+                        const crypto_array_t *ciphertext, crypto_array_t *tag, crypto_array_t *text_out_buffer, crypto_array_t* resulting_tag_buffer) {
 
 
     crypto_array_t *plaintext =
-        aead_process(associated_data, ciphertext, resulting_tag, 0);
+        aead_process(associated_data, ciphertext, resulting_tag_buffer, text_out_buffer, 0);
 
     // Only check tag if one is provided
     if (tag != NULL) {
-        if (check_tag(tag, resulting_tag) == -1) {
+        if (check_tag(tag, resulting_tag_buffer) == -1) {
             for(uint32_t i = 0; i < plaintext->arr_len; i++){
                 mem_set(plaintext->blocks[i].b, 0, CRYPTO_BLOCK_BYTE_SIZE);
             }
-
-            free_crypto_array(plaintext);
-            free_crypto_array(resulting_tag);
 
             print_error("Tags do not match!\n");
             
             return NULL;
         }
     }
-
-    free_crypto_array(resulting_tag);
 
     return plaintext;
 }
