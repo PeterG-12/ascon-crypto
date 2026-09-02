@@ -42,3 +42,19 @@ int check_tag(crypto_array_t *tag_a, crypto_array_t *tag_b){
 
     return 0;
 }
+
+uint8_t nibble_to_byte(const char c){
+    if(c >= '0' && c <= '9'){
+        return (uint8_t)(c - '0');
+    }
+
+    if(c >= 'a' && c <= 'f'){
+        return (10 + (uint8_t)(c - '0'));
+    }
+
+    return 0;
+}
+
+uint8_t nibbles_to_byte(const char c[2]){
+    return 16 * nibble_to_byte(c[0]) + nibble_to_byte(c[1]);    
+}

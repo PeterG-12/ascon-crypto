@@ -51,13 +51,8 @@ crypto_array_t *new_crypto_array(unsigned int block_count){
 }
 
 void print_crypto_array(crypto_array_t* array){
-    for(unsigned int i = 0; i < array->arr_len; i++){
-        for(int j = 0; j < CRYPTO_BLOCK_BYTE_SIZE; j++){
-            neorv32_uart0_printf("%x ", array->blocks[i].b[j]);
-            if(j % 6 == 5){
-                neorv32_uart0_printf("\n");
-            }
-        }
+    for(unsigned int i = 0; i < array->byte_len; i++){
+            putc_hex_character(array->blocks[i / 16].b[i % 16]);
     }
 }
 
@@ -72,7 +67,7 @@ crypto_array_t *bytes_to_crypto_array(uint8_t *bytes, size_t byte_len) {
     if (bytes == NULL)
         return NULL;
 
-    int block_count = (byte_len / CRYPTO_BLOCK_BYTE_SIZE) + 1;
+    uint32_t block_count = (byte_len / CRYPTO_BLOCK_BYTE_SIZE) + 1;
     
 
     crypto_array_t *array = new_crypto_array(block_count);
@@ -88,7 +83,7 @@ crypto_array_t *bytes_to_crypto_array(uint8_t *bytes, size_t byte_len) {
         return array;
     }
 
-    for (unsigned int i = 0; i < block_count - 1; i++) {
+    for (uint32_t i = 0; i < block_count - 1; i++) {
         mem_copy(bytes + (i * CRYPTO_BLOCK_BYTE_SIZE), &array->blocks[i],
                  CRYPTO_BLOCK_BYTE_SIZE);
     }
@@ -123,3 +118,37 @@ void hex_to_bytes(const char *hex_string, uint8_t byte_arr[],
 }
 
 void print_error(const char *error_msg) { neorv32_uart0_printf(error_msg); }
+
+void string_to_bytes(const char* string, size_t len, uint8_t bytes[32]){
+    size_t i;
+    char c[2];
+    if(len % 2 == 0){
+        c[0] = string[0];
+        c[1] = string[1];
+        bytes[0] = nibbles_to_byte(c);
+    }
+    else{
+        c[0] = '0';
+        c[1] = string[1];
+        bytes[0] = nibbles_to_byte(c);
+    }
+
+    for(i = 2; i < len; i += 2){
+        c[0] = string[i];
+        c[1] = string[i + 1];
+        bytes[i/2] = nibbles_to_byte(c);
+    }
+}
+
+void putc_hex_character(uint8_t byte){
+    const char hex_lut[] = "0123456789abcdef";
+    neorv32_uart0_putc(hex_lut[(byte >> 4) & 0x0f]);
+    neorv32_uart0_putc(hex_lut[(byte) & 0x0f]);
+}
+
+void print_byte_string(uint8_t* bytes, size_t len){
+    for(size_t i = 0; i < len; i++){
+        putc_hex_character(bytes[i]);
+    }
+    neorv32_uart0_putc('\n');
+}

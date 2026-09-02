@@ -30,15 +30,15 @@ struct aead128_status {
 void write_32(uint32_t address, const uint32_t data);
 void write_128(uint32_t address, const uint32_t data[4]);
 uint32_t read_32(uint32_t address);
-uint32_t *read_128(uint32_t address);
+void read_128(uint32_t address, uint32_t buffer[4]);
 
 void provide_key(const uint32_t key[4]);
 void provide_nonce(const uint32_t nonce[4]);
 void write_text(const uint32_t text[4]);
 void write_associated_data(const uint32_t associated_data[4]);
 void write_text_len(const uint32_t text_len);
-uint8_t* read_text();
-uint8_t* read_tag();
+void read_text(uint32_t buffer[4]);
+void read_tag(uint32_t buffer[4]);
 
 void commit_write_ctrl_register(struct aead128_control *state);
 struct aead128_status read_status_register(void);

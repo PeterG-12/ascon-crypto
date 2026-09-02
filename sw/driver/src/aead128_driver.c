@@ -3,7 +3,6 @@
 #include "aead128_helper.h"
 #include "aead128_types.h"
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/unistd.h>
 
@@ -58,7 +57,9 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
         print_error("Memory allocation during aead process\n");
         return NULL;
     }
+    
     text_out->byte_len = text_in->byte_len;
+    text_out->arr_len = (text_in->byte_len / 16) + (int)(text_in->byte_len > 0);
 
     int text_in_i = 0;
     int text_out_i = 0;
@@ -153,12 +154,10 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
         status = read_status_register();
 
         if (status.text_ready == 1) {
-            uint8_t *text_out_read_buffer = read_text();
+            uint32_t text_out_read_buffer[4];
+            read_text(text_out_read_buffer);
             mem_copy(text_out_read_buffer, text_out->blocks[text_out_i].b,
                      CRYPTO_BLOCK_BYTE_SIZE);
-
-            free(text_out_read_buffer);
-            text_out_read_buffer = NULL;
 
             text_out_i++;
 
@@ -167,12 +166,12 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
             control.text_read = 0;
         }
     }
-    uint8_t *tag_out = NULL;
+    uint32_t tag_out[4];
     #ifdef USE_INTERRUPTS
     tag_read:
     #endif
 
-    tag_out = read_tag();
+    read_tag(tag_out);
     mem_copy(tag_out, tag->blocks[0].b, CRYPTO_BLOCK_BYTE_SIZE);
 
     mem_set(&control, 0, sizeof(struct aead128_control));
@@ -203,7 +202,7 @@ crypto_array_t *decrypt(const crypto_array_t *associated_data,
     // Only check tag if one is provided
     if (tag != NULL) {
         if (check_tag(tag, resulting_tag) == -1) {
-            for(int i = 0; i < plaintext->arr_len; i++){
+            for(uint32_t i = 0; i < plaintext->arr_len; i++){
                 mem_set(plaintext->blocks[i].b, 0, CRYPTO_BLOCK_BYTE_SIZE);
             }
 
@@ -213,10 +212,6 @@ crypto_array_t *decrypt(const crypto_array_t *associated_data,
             print_error("Tags do not match!\n");
             
             return NULL;
-        } else {
-            for (int i = 0; i < 16; i++) {
-                neorv32_uart0_printf("%x ", resulting_tag->blocks->b[i]);
-            }
         }
     }
 

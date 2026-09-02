@@ -20,3 +20,6 @@ void *mem_set(void *restrict destination, uint8_t byte,
 uint8_t hex_to_val(char c);
 void hex_to_bytes(const char* hex_string, uint8_t byte_arr[], unsigned int len);
 void print_error(const char* error_msg);
+void string_to_bytes(const char* string, size_t len, uint8_t bytes[32]);
+void putc_hex_character(uint8_t byte);
+void print_byte_string(uint8_t* bytes, size_t len);
