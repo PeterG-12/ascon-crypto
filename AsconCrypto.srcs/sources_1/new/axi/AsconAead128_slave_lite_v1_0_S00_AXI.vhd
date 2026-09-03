@@ -680,7 +680,7 @@ begin
 
         if word_processed_o = '1' then
           latched_word_processed <= '1';
-          if slv_reg0(6) then -- only if interrupt is enabled
+          if slv_reg0(6) = '1' then -- only if interrupt is enabled
             latched_word_rdy_int <= '1';
           end if;
         end if;
@@ -689,7 +689,7 @@ begin
           latched_finished <= '1';
           latched_tag_o    <= tag_o;
 
-          if slv_reg0(7) then -- only if interrupt is enabled
+          if slv_reg0(7) = '1' then -- only if interrupt is enabled
             latched_finished_rdy_int <= '1';
           end if;
         end if;

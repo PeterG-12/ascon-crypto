@@ -60,7 +60,6 @@ def pad(hexstring: str, r_bytes: int) -> str:
     a_padded =  data_bytes + a_padding
     
     result = a_padded.hex()
-
     return result
 
 

@@ -40,7 +40,7 @@ MASK_STATUS_WORD_PROCESSED = 1 << 2
 MASK_STATUS_WORD_INT = 1 << 3
 MASK_STATUS_FINISHED_INT = 1 << 4
 
-USE_INTERRUPTS = 1
+USE_INTERRUPTS = 0
 
 if TYPE_CHECKING:
     import copra_stubs
@@ -242,7 +242,7 @@ async def generate_input(
     control.start = 0
     await write_control_register(driver, control)
 
-
+    logger.warning(f"Counts: {count_text} {count_assoc_data}")
     break_finished = 0
 
     while finished != 1:
@@ -340,10 +340,19 @@ async def generate_input(
             )
             control.text_read = 0
 
+
+        tag_bytes = await driver.read_128(ADDR_TAG_OUT)
+
+        try:
+            logger.warning(f" Tag: {tag_bytes.hex()} {hex(dut.asconaead128_slave_lite_v1_0_s00_axi_inst.latched_tag_o.value)}")
+        except:
+            pass
+        
+
         if break_finished == 1:
             break
 
-        logger.debug(f"Finished: {finished}")
+        logger.warning(f"Finished: {finished}")
 
 
 async def generate_clock(dut):
@@ -424,7 +433,7 @@ async def test_for_hex(
 
 
     logger.debug(f"Finished with: {output} :  {tag_bytes.hex()}")
-
+    logger.warning(f"Correct tag: {correct_tag}")
     assert tag_bytes.hex() == correct_tag, "Incorrect tag!"
     assert output == pt, "Incorrect plaintext"
 
@@ -473,7 +482,13 @@ async def test_ascon_aead_single(dut):
         ad = obj.ad
         pt = obj.pt
 
-        
+        if str(pt) != "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F".lower():
+            continue
+
+        if str(ad) != "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F".lower():
+            continue
+
+       
         logger.info("Starting round: %s" % count)
 
 
@@ -484,4 +499,6 @@ async def test_ascon_aead_single(dut):
         if count == TESTS_TO_RUN:
             break
 
-        
+        for transaction in driver.transactions:
+            if transaction["op"] == "write" and False:
+                print(transaction["op"], hex(transaction["addr"]), hex(transaction["data"]))

@@ -80,3 +80,4 @@ __pycache__/
 
 # Axi simulation log files
 simulog_*.txt
+results.xml
