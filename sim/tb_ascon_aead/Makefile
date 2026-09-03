@@ -11,7 +11,7 @@ COMPILE_ARGS += --std=08
 # Python test module name (Runs Copra first, then your test)
 COCOTB_TEST_MODULES = copra.integration.autostub,test_ascon_aead
 
-VHDL_SOURCES += $(HOME)/Vivado/AsconCrypto/AsconCrypto.srcs/sources_1/new/*.vhd
+VHDL_SOURCES += $(wildcard ../../AsconCrypto.srcs/sources_1/new/*.vhd)
 TOPLEVEL = ascon_aead
 
 #VHDL_SOURCES += $(PWD)/vhdl/*.vhd
