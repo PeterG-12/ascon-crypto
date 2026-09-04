@@ -8,6 +8,10 @@ import logging
 from cocotb.triggers import Timer
 from typing import TYPE_CHECKING
 from cocotb.utils import get_sim_time
+from reference.ascon import ascon_encrypt, ascon_decrypt, get_random_bytes
+from util.parsefile import parse_aead_encrypt_file, AeadEncrypt
+from random import randint
+
 
 # Base address of the Axi periphreal used in Vivado
 # Needed for configuring the logs correctly
@@ -352,7 +356,6 @@ async def test_for_hex(
     dut: copra_stubs.Asconaead128, key, nonce, pt, ad, ciphertext, driver
 ):
     global outp
-
     outp = ""
     logger = cocotb.log
     logger.setLevel(logging.INFO)
@@ -369,7 +372,6 @@ async def test_for_hex(
     while finished != 1:
         await RisingEdge(dut.s00_axi_aclk)
         finished, text_ready, word_processed = await read_status_register(driver)
-
     correct_result = ciphertext.lower()
 
     tag_bytes = await driver.read_128(ADDR_TAG_OUT)
@@ -478,3 +480,57 @@ async def test_ascon_aead_single(dut):
 
         if count == TESTS_TO_RUN:
             break
+
+
+@cocotb.test(timeout_time=8000, timeout_unit="us")
+async def test_ascon_aead_random(dut):
+    global outp
+    logger = cocotb.log
+    logger.setLevel(logging.INFO)
+
+    logger = cocotb.log
+    logger.setLevel(logging.INFO)
+
+    cocotb.start_soon(generate_clock(dut))
+
+    dut.s00_axi_aresetn.value = 0
+    await RisingEdge(dut.s00_axi_aclk)
+    await RisingEdge(dut.s00_axi_aclk)
+
+    axi_master = AxiLiteMaster(
+        AxiLiteBus.from_prefix(dut, "s00_axi"),
+        dut.s00_axi_aclk,
+        dut.s00_axi_aresetn,
+        reset_active_level=False,
+    )
+
+    driver = AxiAsconDriver(axi_master)
+    dut.s00_axi_aresetn.value = 1
+
+    await RisingEdge(dut.s00_axi_aclk)
+
+    KAT_dictionary = {}
+    count = 0
+
+    for i in range(250):
+        key = get_random_bytes(16)
+        nonce = get_random_bytes(16)
+
+        ad = get_random_bytes(randint(0, 24))
+        pt = get_random_bytes(randint(0, 24))
+
+        ciphertext = ascon_encrypt(key, nonce, ad, pt, "Ascon-AEAD128")
+
+        obj = AeadEncrypt(key.hex(), nonce.hex(), pt.hex(), ad.hex())
+        KAT_dictionary[obj] = ciphertext.hex()
+
+    for input_data in KAT_dictionary.keys():
+        logger.info("Starting round: %s" % count)
+
+        obj = input_data
+        await test_for_hex(
+            dut, obj.key, obj.nonce, obj.pt, obj.ad, KAT_dictionary[input_data], driver
+        )
+
+        outp = ""
+        count += 1

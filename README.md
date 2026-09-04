@@ -26,6 +26,26 @@ The project was developed incrementally, performing comparisons at each step aga
 
 Many thanks to all developers that provided these tools.
 
+## Synthesis and Implementation information
+Elements used by the AsconAead128 axi-lite module
+
+| Resource | Utilization |
+| --- | --- |
+| **Slice LUTs** | 2,296 |
+| **LUT as Memory** | 0 |
+| **Slice Registers** | 2,554 |
+| **Slices** | 770 |
+| **F7 Muxes** | 96 |
+| **Block RAM (BRAM)** | 0 |
+
+Vivado timing analysis for the whole SoC confirms that the timing closures across the entire SoC with headroom to run at even higher frequencies 
+(It was synthesised for 50MHz)
+
+Setup WNS: 8.544 ns (Met)
+Hold WHS: 0.061 ns (Met)
+Pulse Width WPWS: 7.0 ns (Met)
+
+
 ## Notes on usage
 
 The modules can be observed using the testbenches:
@@ -39,7 +59,7 @@ Make sure to have the following dependencies:
 Linux:
 
 ```bash
-git clone git@github.com:PeterG-12/ascon-crypto.git ascon-crypto
+git clone https://github.com/PeterG-12/ascon-crypto.git ascon-crypto
 cd ascon-crypto/sim
 python3 -m venv .venv
 source .venv/bin/activate
@@ -50,28 +70,28 @@ make
 
 ## Ascon accelerator benchmark
 
-The raw results from benchamarking can be found in the table below.
+The raw results from benchmarking can be found in the table below.
 Note: the constant 161 cycle difference between encryption stems from tag checking in decryption
 
-| Message Length | Encryption (Cycles) | Decryption & Tag Checking (Cycles) |
-| --- | --- | --- |
-| 1 Byte | 940 | 1,101 |
-| 8 Bytes | 940 | 1,101 |
-| 16 Bytes | 1,132 | 1,293 |
-| 32 Bytes | 1,397 | 1,558 |
-| 64 Bytes | 1,927 | 2,088 |
-| 1,536 Bytes | 26,307 | 26,468 |
+| Message Length | Encryption (Cycles) | Decryption & Tag Checking (Cycles) | Cocotb Encryption (Cycles) |
+| --- | --- | --- | --- |
+| 1 Byte | 940 | 1,101 | 113 |
+| 8 Bytes | 940 | 1,101 | 113 |
+| 16 Bytes | 1,132 | 1,293 | 140 |
+| 32 Bytes | 1,397 | 1,558 | 179 |
+| 64 Bytes | 1,927 | 2,088 | 257 |
+| 1,536 Bytes | 26,307 | 26,468 | 3,845 |
 
 Results translated to cycles per byte.
 
-| Message Length | Encryption (cpb) |
-| --- | --- |
-| 1 Byte | 940.00 |
-| 8 Bytes | 117.50 |
-| 16 Bytes | 70.75 |
-| 32 Bytes | 43.66 |
-| 64 Bytes | 30.11 |
-| 1,536 Bytes | 17.13 |
+| Message Length | NEORV32 SoC Encryption (cpb) | Cocotb Simulation Encryption (cpb) |
+| --- | --- | --- |
+| 1 Byte | 940.00 | 113.00 |
+| 8 Bytes | 117.50 | 14.13 |
+| 16 Bytes | 70.75 | 8.75 |
+| 32 Bytes | 43.66 | 5.59 |
+| 64 Bytes | 30.11 | 4.02 |
+| 1,536 Bytes | 17.13 | 2.50 |
 
 ## Comparison to estimated performance results on different CPUs in cycles per byte
 
@@ -90,4 +110,5 @@ Taken from [ascon-c](https://github.com/ascon/ascon-c.git)
 | Cortex-A7 (NEON) | 2204 | 226 | 132 | 82 | 55.9 | 31.7 | 30.7 |
 | Cortex-A7 (ARMv7)* |  |  |  |  | 55.5 | 38.2 | 37.5 |
 | ARM1176JZF-S (ARMv6) | 1908 | 235 | 156 | 99 | 70.4 | 43.0 | 42.9 |
-| **NEORV32 + AXI-Lite HW module SoC  (RISC-V)** | **940** | **117.5** | **70.8** | **43.7** | **30.1** | **17.1** | **~16.6** |
+| **NEORV32 + AXI-Lite HW module SoC (RISC-V)** | **940** | **117.5** | **70.8** | **43.7** | **30.1** | **17.1** | **~16.6** |
+| **Cocotb HW Simulation** | **113** | **14.1** | **8.8** | **5.6** | **4.0** | **2.5** | **~2.4** |
