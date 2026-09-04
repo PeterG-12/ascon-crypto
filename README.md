@@ -46,6 +46,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 cd tb_ascon_aead # or cd tb_ascon_hash or tb_axi_aead
 make
+```
 
 ## Ascon accelerator benchmark
 
