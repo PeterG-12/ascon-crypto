@@ -13,7 +13,8 @@ EXTRA_ARGS += -Wno-hide
 # Python test module name (Runs Copra first, then your test)
 COCOTB_TEST_MODULES = copra.integration.autostub,test_ascon_aead_axi
 
-VHDL_SOURCES += $(HOME)/Vivado/AsconCrypto/AsconCrypto.srcs/sources_1/new/axi/*.vhd
+VHDL_SOURCES += $(wildcard ../../rtl/*.vhd)
+VHDL_SOURCES += $(wildcard ../../rtl/axi/*.vhd)
 TOPLEVEL = asconaead128
 
 #VHDL_SOURCES += $(PWD)/vhdl/*.vhd
