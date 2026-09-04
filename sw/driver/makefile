@@ -16,10 +16,10 @@ EFFORT = -O3
 USER_FLAGS += -Wl,--defsym,__neorv32_rom_size=32k
 
 # Adjust processor DMEM size
-USER_FLAGS += -Wl,--defsym,__neorv32_ram_size=16k
+USER_FLAGS += -Wl,--defsym,__neorv32_ram_size=32k
 
 # Adjust maximum heap size
-USER_FLAGS += -Wl,--defsym,__neorv32_heap_size=1k
+USER_FLAGS += -Wl,--defsym,__neorv32_heap_size=16k
 
 
 USER_FLAGS += --specs=nano.specs

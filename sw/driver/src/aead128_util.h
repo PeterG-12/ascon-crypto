@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../include/aead128_types.h"
 #include <stdint.h>
 #include <unistd.h>

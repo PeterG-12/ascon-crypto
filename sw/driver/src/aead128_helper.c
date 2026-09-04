@@ -12,14 +12,14 @@ void print_error(const char *error_msg) { neorv32_uart0_printf(error_msg); }
 crypto_array_t *new_crypto_array(unsigned int block_count){
     crypto_array_t *array = (crypto_array_t*)malloc(sizeof(crypto_array_t));
     if(array == NULL){
-        print_error("Memory allocation during bytes_to_crypto_array");
+        print_error("Memory allocation error during new crypto array");
         return NULL;
     }
 
     array->blocks =
         (crypto_block_t *)malloc(block_count * sizeof(crypto_block_t));
     if (array->blocks == NULL) {
-        print_error("Memory allocation during bytes_to_crypto_array");
+        print_error("Memory allocation error during new crypto array blocks");
         free(array);
         return NULL;
     }

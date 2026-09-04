@@ -1,3 +1,4 @@
+#pragma once
 
 #define A128_BASE_ADDRESS    (unsigned int)0x44A00000UL
 

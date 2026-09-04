@@ -10,13 +10,11 @@ static volatile uint8_t interrupt_fired;
 
 void machine_interrupt_handler(void) {
     uint32_t stat = READ_STAT();
-    //if (status.word_rdy_int) {
     if (CHECK_STAT(stat, STAT_WRD_RDY_INT)) {
         interrupt_fired = 1;
         clear_word_rdy_interrupt();
     }
 
-    //if (status.finished_rdy_int) {
     if (CHECK_STAT(stat, STAT_FIN_RDY_INT)) {
         interrupt_fired = 1;
         clear_finished_rdy_interrupt();
@@ -28,11 +26,6 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
                              uint8_t encrypt_mode) {
 
     interrupt_fired = 0;
-    //struct aead128_control control;
-    //struct aead128_status status;
-
-    //mem_set(&control, 0, sizeof(struct aead128_control));
-    //mem_set(&status, 0, sizeof(struct aead128_status));
 
     uint32_t control = 0;
     uint32_t stat = 0;                   
@@ -42,14 +35,11 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
         SET_CTRL(control, CTRL_ENCRYPT_MODE);
 
 
-    //control.encrypt_mode = encrypt_mode;
-    //control.text_word_left = 1;
 
 #ifdef USE_INTERRUPTS
     SET_CTRL(control, CTRL_FIN_RDY_EN | CTRL_WORD_RDY_EN);
 #endif
 
-    //commit_write_ctrl_register(&control);
     COMMIT_CTRL(control);
 
     int plen = 128;
@@ -71,30 +61,23 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
 
     if (associated_data_count == 0) {
         CLR_CTRL(control, CTRL_AD_LEFT);
-        //control.associated_data_word_left = 0;
     } else {
         SET_CTRL(control, CTRL_AD_LEFT);
-        //control.associated_data_word_left = 1;
         write_associated_data(associated_data->blocks[0].w);
     }
 
     if (text_in_count <= 1) {
         plen = last_text_word_len;
-        //control.text_word_left = 0;
         SET_CTRL(control, CTRL_TXT_LEFT);
         write_text(text_in->blocks[0].w);
     }
 
-    //control.start = 1;
-    //control.input_ready = 1;
     SET_CTRL(control, CTRL_START);
-    SET_CTRL(control, CTRL_INPUT_READY);
+    SET_CTRL(control, CTRL_INP_RDY);
 
 
-    //commit_write_ctrl_register(&control);
-    //control.input_ready = 0;
     COMMIT_CTRL(control);
-    CLR_CTRL(control, CTRL_INPUT_READY);
+    CLR_CTRL(control, CTRL_INP_RDY);
 
     
 
@@ -102,20 +85,15 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
     CLR_CTRL(control, CTRL_START);
     COMMIT_CTRL(control);
 
-    //status = read_status_register();
     stat = READ_STAT();
 
-    //while (status.finished != 1) {
     while (!CHECK_STAT(stat, STAT_FIN)) {
 
-        //status = read_status_register();
         stat = READ_STAT();
 
-        //if (status.word_processed != 1) {
         if (!CHECK_STAT(stat, STAT_WRD_PROC)) {
 
         #ifdef USE_INTERRUPTS
-            //while (status.word_processed != 1) {
             while (!CHECK_STAT(stat, STAT_WRD_PROC)) {
 
                 neorv32_cpu_csr_clr(CSR_MSTATUS, 1 << CSR_MSTATUS_MIE);
@@ -133,15 +111,14 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
 
 #ifndef USE_INTERRUPTS
             int word_processed_old = 0;
-            //if (!status.word_processed) {
             if (!CHECK_STAT(stat, STAT_WRD_PROC)) {
                 // Wait for word_processed rising edge
                 while (
                     !(word_processed_old == 0 && CHECK_STAT(stat, STAT_WRD_PROC))) {
                     word_processed_old = stat & STAT_WRD_PROC;
                     word_processed_old = (int)(word_processed_old > 0);
-                    //status = read_status_register();
                     __asm__ volatile(
+                        "nop\n"
                         "nop\n"
                         "nop\n"
                         "nop\n"
@@ -160,8 +137,6 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
         if (associated_data_count > 0 &&
             associated_data_i < associated_data_count) {
             SET_CTRL(control, CTRL_AD_LEFT | CTRL_TXT_LEFT);
-            //control.associated_data_word_left = 1;
-            //control.text_word_left = 1;
             write_associated_data(associated_data->blocks[associated_data_i].w);
             associated_data_i++;
         } else if (text_in_i < text_in_count) {
@@ -169,63 +144,40 @@ crypto_array_t *aead_process(const crypto_array_t *associated_data,
                 plen = last_text_word_len;
                 write_text_len(plen);
                 CLR_CTRL(control, CTRL_TXT_LEFT);
-                //control.text_word_left = 0;
             } else {
                 SET_CTRL(control, CTRL_TXT_LEFT);
-                //control.text_word_left = 1;
             }
             CLR_CTRL(control, CTRL_AD_LEFT);
-            //control.associated_data_word_left = 0;
 
             write_text(text_in->blocks[text_in_i].w);
             text_in_i++;
         } else {
             CLR_CTRL(control, CTRL_AD_LEFT | CTRL_TXT_LEFT);
-            //control.associated_data_word_left = 0;
-            //control.text_word_left = 0;
         }
-
-
-        //control.input_ready = 1;
-        //commit_write_ctrl_register(&control);
-        //control.input_ready = 0;
             
-        SET_CTRL(control, CTRL_INPUT_READY);
+        SET_CTRL(control, CTRL_INP_RDY);
         COMMIT_CTRL(control);
-        CLR_CTRL(control, CTRL_INPUT_READY);
+        CLR_CTRL(control, CTRL_INP_RDY);
 
 
-        //status = read_status_register();
         stat = READ_STAT();
 
-        //if (status.text_ready == 1) {
         if (CHECK_STAT(stat, STAT_TXT_RDY)) {
-            //uint32_t text_out_read_buffer[4];
             read_text(text_out_buffer->blocks[text_out_i].w);
-            // CRYPTO_BLOCK_BYTE_SIZE is assumed to be multiple of 4 always so NULL is not checked
-            /*word_mem_copy(text_out_read_buffer, text_out->blocks[text_out_i].w,
-                     CRYPTO_BLOCK_BYTE_SIZE);*/
 
             text_out_i++;
 
-            //control.text_read = 1;
-            //commit_write_ctrl_register(&control);
-            //control.text_read = 0;
-            SET_CTRL(control, CTRL_TEXT_READ);
+            SET_CTRL(control, CTRL_TXT_READ);
             COMMIT_CTRL(control);
-            CLR_CTRL(control, CTRL_TEXT_READ);
+            CLR_CTRL(control, CTRL_TXT_READ);
         }
     }
-    //uint32_t tag_out[4];
     #ifdef USE_INTERRUPTS
     tag_read:
     #endif
 
     read_tag(tag->blocks[0].w);
-    //word_mem_copy(tag_out, tag->blocks[0].b, CRYPTO_BLOCK_BYTE_SIZE);
 
-    //mem_set(&control, 0, sizeof(struct aead128_control));
-    //commit_write_ctrl_register(&control);
     control = 0;
     COMMIT_CTRL(control);
 
