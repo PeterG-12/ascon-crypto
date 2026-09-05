@@ -41,9 +41,9 @@ Elements used by the AsconAead128 axi-lite module
 Vivado timing analysis for the whole SoC confirms that the timing closures across the entire SoC with headroom to run at even higher frequencies 
 (It was synthesised for 50MHz)
 
-Setup WNS: 8.544 ns (Met)
-Hold WHS: 0.061 ns (Met)
-Pulse Width WPWS: 7.0 ns (Met)
+- Setup WNS: 8.544 ns (Met)
+- Hold WHS: 0.061 ns (Met)
+- Pulse Width WPWS: 7.0 ns (Met)
 
 
 ## Notes on usage
