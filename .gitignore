@@ -83,3 +83,6 @@ simulog_*.txt
 results.xml
 
 copra_stubs.pyi
+
+build
+build/*

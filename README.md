@@ -68,6 +68,21 @@ cd tb_ascon_aead # or cd tb_ascon_hash or tb_axi_aead
 make
 ```
 
+## Building and deploying to FPGA
+
+If using a different FPGA board edit ```fpga/constraints/wukong_soc_constr.xdc``` and ```build_project.tcl``` accordingly
+
+On Linux with vivado installed:
+
+```bash
+git clone https://github.com/PeterG-12/ascon-crypto.git ascon-crypto
+cd ascon-crypto/sim
+mkdir build
+vivado -mode batch -source build_project.tcl 
+```
+
+Then open the project in ```build/```
+
 ## Ascon accelerator benchmark
 
 The raw results from benchmarking can be found in the table below.
@@ -112,3 +127,7 @@ Taken from [ascon-c](https://github.com/ascon/ascon-c.git)
 | ARM1176JZF-S (ARMv6) | 1908 | 235 | 156 | 99 | 70.4 | 43.0 | 42.9 |
 | **NEORV32 + AXI-Lite HW module SoC (RISC-V)** | **940** | **117.5** | **70.8** | **43.7** | **30.1** | **17.1** | **~16.6** |
 | **Cocotb HW Simulation** | **113** | **14.1** | **8.8** | **5.6** | **4.0** | **2.5** | **~2.4** |
+
+![CPU comparison schematic](images/ascon_cpu_comparison_1536b.png)
+![Raw cycles schematic](images/ascon_raw_cycles.png)
+![CPU scaling schematic](images/ascon_scaling_cpb.png)
