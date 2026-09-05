@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import string
 import cocotb
 from cocotb.triggers import Timer, Edge, with_timeout, First
