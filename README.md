@@ -45,6 +45,14 @@ Vivado timing analysis for the whole SoC confirms that the timing closures acros
 - Hold WHS: 0.061 ns (Met)
 - Pulse Width WPWS: 7.0 ns (Met)
 
+## Continous Integration using Github actions
+
+Automated regression runs execute on every push via *GitHub Actions* using *GHDL* and *Cocotb* to verify:
+* `ascon_hash`
+* `ascon_aead`
+* `axi_lite_ascon_aead`
+
+Simulation logs and test summaries (`results.xml`) are viewable under the **Actions** tab.
 
 ## Notes on usage
 

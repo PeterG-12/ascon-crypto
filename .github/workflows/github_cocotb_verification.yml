@@ -1,0 +1,43 @@
+name: Cocotb Verification
+
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+permissions:
+  contents: read
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+    - name: Install dependencies
+      run: |
+        sudo apt-get update -y
+        sudo apt install ghdl
+        cd sim
+        python -m venv .venv
+        source .venv/bin/activate
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: Run cocotb testbenches
+      run: |
+        cd sim 
+        source .venv/bin/activate
+        cd tb_ascon_hash
+        make
+        cd ..
+        cd tb_ascon_aead
+        make
+        cd ..
+        cd tb_axi_aead
+        make 
