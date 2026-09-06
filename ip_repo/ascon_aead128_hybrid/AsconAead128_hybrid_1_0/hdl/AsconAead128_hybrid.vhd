@@ -2,7 +2,7 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-entity AsconAead128 is
+entity AsconAead128_hybrid is
 	generic (
 		-- Users to add parameters here
 
@@ -12,7 +12,10 @@ entity AsconAead128 is
 
 		-- Parameters of Axi Slave Bus Interface S00_AXI
 		C_S00_AXI_DATA_WIDTH	: integer	:= 32;
-		C_S00_AXI_ADDR_WIDTH	: integer	:= 7
+		C_S00_AXI_ADDR_WIDTH	: integer	:= 7;
+
+		-- Parameters of Axi Slave Bus Interface S00_AXIS
+		C_S00_AXIS_TDATA_WIDTH	: integer	:= 32
 	);
 	port (
 		-- Users to add ports here
@@ -43,15 +46,22 @@ entity AsconAead128 is
 		s00_axi_rresp	: out std_logic_vector(1 downto 0);
 		s00_axi_rvalid	: out std_logic;
 		s00_axi_rready	: in std_logic;
-        -- Interrupt signal
-        module_interrupt_o : out std_logic
-	);
-end AsconAead128;
 
-architecture arch_imp of AsconAead128 is
+		-- Ports of Axi Slave Bus Interface S00_AXIS
+		s00_axis_aclk	: in std_logic;
+		s00_axis_aresetn	: in std_logic;
+		s00_axis_tready	: out std_logic;
+		s00_axis_tdata	: in std_logic_vector(C_S00_AXIS_TDATA_WIDTH-1 downto 0);
+		s00_axis_tstrb	: in std_logic_vector((C_S00_AXIS_TDATA_WIDTH/8)-1 downto 0);
+		s00_axis_tlast	: in std_logic;
+		s00_axis_tvalid	: in std_logic
+	);
+end AsconAead128_hybrid;
+
+architecture arch_imp of AsconAead128_hybrid is
 
 	-- component declaration
-	component AsconAead128_slave_lite_v1_0_S00_AXI is
+	component AsconAead128_hybrid_slave_lite_v1_0_S00_AXI is
 		generic (
 		C_S_AXI_DATA_WIDTH	: integer	:= 32;
 		C_S_AXI_ADDR_WIDTH	: integer	:= 7
@@ -77,15 +87,29 @@ architecture arch_imp of AsconAead128 is
 		S_AXI_RDATA	: out std_logic_vector(C_S_AXI_DATA_WIDTH-1 downto 0);
 		S_AXI_RRESP	: out std_logic_vector(1 downto 0);
 		S_AXI_RVALID	: out std_logic;
-		S_AXI_RREADY	: in std_logic;
-        module_interrupt_o : out std_logic
+		S_AXI_RREADY	: in std_logic
 		);
-	end component AsconAead128_slave_lite_v1_0_S00_AXI;
+	end component AsconAead128_hybrid_slave_lite_v1_0_S00_AXI;
+
+	component AsconAead128_hybrid_slave_stream_v1_0_S00_AXIS is
+		generic (
+		C_S_AXIS_TDATA_WIDTH	: integer	:= 32
+		);
+		port (
+		S_AXIS_ACLK	: in std_logic;
+		S_AXIS_ARESETN	: in std_logic;
+		S_AXIS_TREADY	: out std_logic;
+		S_AXIS_TDATA	: in std_logic_vector(C_S_AXIS_TDATA_WIDTH-1 downto 0);
+		S_AXIS_TSTRB	: in std_logic_vector((C_S_AXIS_TDATA_WIDTH/8)-1 downto 0);
+		S_AXIS_TLAST	: in std_logic;
+		S_AXIS_TVALID	: in std_logic
+		);
+	end component AsconAead128_hybrid_slave_stream_v1_0_S00_AXIS;
 
 begin
 
 -- Instantiation of Axi Bus Interface S00_AXI
-AsconAead128_slave_lite_v1_0_S00_AXI_inst : AsconAead128_slave_lite_v1_0_S00_AXI
+AsconAead128_hybrid_slave_lite_v1_0_S00_AXI_inst : AsconAead128_hybrid_slave_lite_v1_0_S00_AXI
 	generic map (
 		C_S_AXI_DATA_WIDTH	=> C_S00_AXI_DATA_WIDTH,
 		C_S_AXI_ADDR_WIDTH	=> C_S00_AXI_ADDR_WIDTH
@@ -111,11 +135,26 @@ AsconAead128_slave_lite_v1_0_S00_AXI_inst : AsconAead128_slave_lite_v1_0_S00_AXI
 		S_AXI_RDATA	=> s00_axi_rdata,
 		S_AXI_RRESP	=> s00_axi_rresp,
 		S_AXI_RVALID	=> s00_axi_rvalid,
-		S_AXI_RREADY	=> s00_axi_rready,
-        module_interrupt_o => module_interrupt_o
+		S_AXI_RREADY	=> s00_axi_rready
+	);
+
+-- Instantiation of Axi Bus Interface S00_AXIS
+AsconAead128_hybrid_slave_stream_v1_0_S00_AXIS_inst : AsconAead128_hybrid_slave_stream_v1_0_S00_AXIS
+	generic map (
+		C_S_AXIS_TDATA_WIDTH	=> C_S00_AXIS_TDATA_WIDTH
+	)
+	port map (
+		S_AXIS_ACLK	=> s00_axis_aclk,
+		S_AXIS_ARESETN	=> s00_axis_aresetn,
+		S_AXIS_TREADY	=> s00_axis_tready,
+		S_AXIS_TDATA	=> s00_axis_tdata,
+		S_AXIS_TSTRB	=> s00_axis_tstrb,
+		S_AXIS_TLAST	=> s00_axis_tlast,
+		S_AXIS_TVALID	=> s00_axis_tvalid
 	);
 
 	-- Add user logic here
+
 	-- User logic ends
 
 end arch_imp;

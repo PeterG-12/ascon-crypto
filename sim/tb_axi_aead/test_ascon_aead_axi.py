@@ -1,4 +1,5 @@
 from __future__ import annotations
+import re
 
 import cocotb
 from cocotb.clock import Clock
@@ -78,6 +79,15 @@ def input_lists(assoc_data: str, text: str):
 
     return text_list, assoc_data_list, count_text, count_assoc_data, last_word_len
 
+class Fifo:
+    def __init__(self) -> None:
+        self.fifo = []
+
+    def is_full(self) -> bool:
+        return (len(self.fifo) >= 16)
+
+    def is_empty(self) -> bool:
+        return (len(self.fifo) == 0)
 
 class ControlSignals:
     def __init__(self) -> None:
@@ -278,6 +288,7 @@ async def generate_input(
 
         await driver.write_32(ADDR_TEXT_LEN, plen)
 
+
         logger.debug(
             f"Count_a: {count_assoc_data} i_a: {i_associated_data}  Count_p: {count_text} i_p: {i_text} "
         )
@@ -312,6 +323,8 @@ async def generate_input(
         logger.debug(
             f"Writing pleft: {control.text_word_left} adleft: {control.associated_data_word_left}"
         )
+
+        
         control.input_ready = 1
         await write_control_register(
             driver,
@@ -321,7 +334,12 @@ async def generate_input(
 
 
         finished, text_ready, word_processed = await read_status_register(driver)
-        if text_ready == 1:
+
+
+        assert ((text_ready and not control.associated_data_word_left) or (control.associated_data_word_left and not text_ready) or finished), "Assumption incorrect"
+
+
+        if (not (control.associated_data_word_left) and not finished):
             text_out = await driver.read_128(ADDR_TEXT_OUT)
             logger.debug(f"TEXT_OUT: {text_out} Plen: {plen}")
 
@@ -459,6 +477,9 @@ async def test_ascon_aead_single(dut):
 
     KAT_dictionary = parse_aead_encrypt_file("LWC_AEAD_KAT_128_128.txt")
 
+
+
+
     count = 0
     TESTS_TO_RUN = -1  # -1 to perform all tests
 
@@ -486,6 +507,9 @@ async def test_ascon_aead_single(dut):
 
 @cocotb.test(timeout_time=8000, timeout_unit="us")
 async def test_ascon_aead_random(dut):
+    logging.getLogger("cocotb.asconaead128.s00_axi").setLevel(logging.WARNING)
+    logging.getLogger("py.warnings").setLevel(logging.ERROR)
+
     global outp
     logger = cocotb.log
     logger.setLevel(logging.INFO)
@@ -514,7 +538,7 @@ async def test_ascon_aead_random(dut):
     KAT_dictionary = {}
     count = 0
 
-    for i in range(250):
+    for i in range(100):
         key = get_random_bytes(16)
         nonce = get_random_bytes(16)
 

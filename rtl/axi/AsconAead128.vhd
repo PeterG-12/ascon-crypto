@@ -5,7 +5,7 @@ use ieee.numeric_std.all;
 entity AsconAead128 is
 	generic (
 		-- Users to add parameters here
-
+        FIFO_DEPTH : natural := 16;
 		-- User parameters ends
 		-- Do not modify the parameters beyond this line
 
@@ -53,6 +53,7 @@ architecture arch_imp of AsconAead128 is
 	-- component declaration
 	component AsconAead128_slave_lite_v1_0_S00_AXI is
 		generic (
+        FIFO_DEPTH : natural := 16;
 		C_S_AXI_DATA_WIDTH	: integer	:= 32;
 		C_S_AXI_ADDR_WIDTH	: integer	:= 7
 		);
@@ -87,6 +88,7 @@ begin
 -- Instantiation of Axi Bus Interface S00_AXI
 AsconAead128_slave_lite_v1_0_S00_AXI_inst : AsconAead128_slave_lite_v1_0_S00_AXI
 	generic map (
+        FIFO_DEPTH => FIFO_DEPTH,
 		C_S_AXI_DATA_WIDTH	=> C_S00_AXI_DATA_WIDTH,
 		C_S_AXI_ADDR_WIDTH	=> C_S00_AXI_ADDR_WIDTH
 	)
