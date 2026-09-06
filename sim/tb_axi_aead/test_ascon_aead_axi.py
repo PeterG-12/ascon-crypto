@@ -451,7 +451,7 @@ async def test_for_hex(
 
 @cocotb.test(timeout_time=8000, timeout_unit="us")
 async def test_ascon_aead_single(dut):
-    logging.getLogger("cocotb.asconaead128.s00_axi").setLevel(logging.WARNING)
+    logging.getLogger("cocotb.asconaead128_hybrid.s00_axi").setLevel(logging.WARNING)
     logging.getLogger("py.warnings").setLevel(logging.ERROR)
 
     logger = cocotb.log

@@ -14,7 +14,8 @@ COCOTB_TEST_MODULES = copra.integration.autostub,test_ascon_aead_axi
 
 VHDL_SOURCES += $(wildcard ../../rtl/*.vhd)
 VHDL_SOURCES += $(wildcard ../../rtl/axi/*.vhd)
-TOPLEVEL = asconaead128
+VHDL_SOURCES += $(wildcard ../../rtl/axi_hybrid/*.vhd)
+TOPLEVEL = asconaead128_hybrid
 
 #VHDL_SOURCES += $(PWD)/vhdl/*.vhd
 # Top-level entity name

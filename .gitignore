@@ -86,3 +86,6 @@ copra_stubs.pyi
 
 build
 build/*
+
+wave_config
+wave_config/*

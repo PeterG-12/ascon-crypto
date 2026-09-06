@@ -81,14 +81,21 @@ entity AsconAead128_hybrid_slave_lite_v1_0_S00_AXI is
     -- accept the read data and response information.
     S_AXI_RREADY : in std_logic;
 
-    key                : out std_logic_vector(127 downto 0);
-    nonce              : out std_logic_vector(127 downto 0);
-    tag                : in std_logic_vector(127 downto 0);
-    text_out           : in std_logic_vector(127 downto 0);
-    text_in            : out std_logic_vector(127 downto 0);
-    status_register    : out std_logic_vector(31 downto 0);
-    control_register   : out std_logic_vector(31 downto 0);
-    text_len           : natural range 0 to 128;
+    key_axi_lite              : out std_logic_vector(127 downto 0);
+    nonce_axi_lite            : out std_logic_vector(127 downto 0);
+    tag_axi_lite              : in std_logic_vector(127 downto 0);
+    text_out_axi_lite         : in std_logic_vector(127 downto 0);
+    text_in_axi_lite          : out std_logic_vector(127 downto 0);
+    associated_data_axi_lite  : out std_logic_vector(127 downto 0);
+    status_register_axi_lite  : out std_logic_vector(31 downto 0);
+    control_register_axi_lite : out std_logic_vector(31 downto 0);
+    text_len_axi_lite         : out natural range 0 to 128;
+    start_core_axi_lite       : in std_logic;
+
+    finished_axi_lite       : in std_logic;
+    text_ready_axi_lite     : in std_logic;
+    word_processed_axi_lite : in std_logic;
+
     module_interrupt_o : out std_logic
 
   );
@@ -169,20 +176,13 @@ architecture arch_imp of AsconAead128_hybrid_slave_lite_v1_0_S00_AXI is
   signal latched_text_ready     : std_logic := '0';
   signal latched_word_processed : std_logic := '0';
 
-  signal start_core_o     : std_logic := '0';
-  signal finished_o       : std_logic := '0';
-  signal text_ready_o     : std_logic := '0';
-  signal word_processed_o : std_logic := '0';
-
-  signal text_o : std_logic_vector(127 downto 0) := (others => '0');
-  signal tag_o  : std_logic_vector(127 downto 0) := (others => '0');
-
   signal latched_finished_rdy_int : std_logic := '0';
   signal latched_word_rdy_int     : std_logic := '0';
 
-  signal input_ready               : std_logic := '0';
   signal associated_data_word_left : std_logic := '0';
   signal plaintext_word_left       : std_logic := '0';
+
+  signal status_register_internal : std_logic_vector(31 downto 0) := (others => '0');
 
 begin
   -- I/O Connections assignments
@@ -545,6 +545,9 @@ begin
               slv_reg26 <= slv_reg26;
           end case;
         end if;
+        if start_core_axi_lite = '1' then
+          slv_reg0(4) <= '0';
+        end if;
       end if;
     end if;
   end process;
@@ -594,7 +597,7 @@ begin
   end process;
   -- Implement memory mapped register select and read logic generation
   S_AXI_RDATA <= slv_reg0 when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "00000") else
-    slv_reg1 when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "00001") else
+    status_register_internal when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "00001") else
     slv_reg2 when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "00010") else
     slv_reg3 when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "00011") else
     slv_reg4 when (axi_araddr(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB) = "00100") else
@@ -626,8 +629,11 @@ begin
 
   -- Add user logic here
 
-  key   <= slv_reg3 & slv_reg2 & slv_reg5 & slv_reg4;
-  nonce <= slv_reg7 & slv_reg6 & slv_reg9 & slv_reg8;
+  key_axi_lite             <= slv_reg3 & slv_reg2 & slv_reg5 & slv_reg4;
+  nonce_axi_lite           <= slv_reg7 & slv_reg6 & slv_reg9 & slv_reg8;
+  associated_data_axi_lite <= slv_reg11 & slv_reg10 & slv_reg13 & slv_reg12;
+  text_in_axi_lite         <= slv_reg15 & slv_reg14 & slv_reg17 & slv_reg16;
+  text_len_axi_lite        <= to_integer(unsigned(slv_reg18));
 
   -- Handle latching and clearing 1-cycle signals
   process (S_AXI_ACLK)
@@ -637,8 +643,8 @@ begin
         latched_finished         <= '0';
         latched_text_ready       <= '0';
         latched_word_processed   <= '0';
-        latched_text           <= (others => '0');
-        latched_tag            <= (others => '0');
+        latched_text             <= (others => '0');
+        latched_tag              <= (others => '0');
         latched_finished_rdy_int <= '0';
         latched_word_rdy_int     <= '0';
 
@@ -646,21 +652,21 @@ begin
 
         clear_text_latch_prev <= slv_reg0(5);
 
-        if text_ready_o = '1' then
+        if text_ready_axi_lite = '1' then
           latched_text_ready <= '1';
-          latched_text     <= text_o;
+          latched_text       <= text_out_axi_lite;
         end if;
 
-        if word_processed_o = '1' then
+        if word_processed_axi_lite = '1' then
           latched_word_processed <= '1';
           if slv_reg0(6) = '1' then -- only if interrupt is enabled
             latched_word_rdy_int <= '1';
           end if;
         end if;
 
-        if finished_o = '1' then
+        if finished_axi_lite = '1' then
           latched_finished <= '1';
-          latched_tag    <= tag_o;
+          latched_tag      <= tag_axi_lite;
 
           if slv_reg0(7) = '1' then -- only if interrupt is enabled
             latched_finished_rdy_int <= '1';
@@ -669,7 +675,7 @@ begin
         -- Confirm text read
         if clear_text_latch_prev = '0' and slv_reg0(5) = '1' then
           latched_text_ready <= '0';
-          latched_text     <= (others => '0');
+          latched_text       <= (others => '0');
         end if;
 
         -- Clear latches when a new start command is written to slv_reg0
@@ -697,15 +703,16 @@ begin
     end if;
   end process;
 
+  status_register_internal (0)           <= latched_finished or finished_axi_lite;
+  status_register_internal (1)           <= latched_text_ready or text_ready_axi_lite;
+  status_register_internal (2)           <= latched_word_processed or word_processed_axi_lite;
+  status_register_internal (3)           <= latched_word_rdy_int;
+  status_register_internal (4)           <= latched_finished_rdy_int;
+  status_register_internal (31 downto 5) <= (others => '0');
 
-  status_register(0)            <= latched_finished or finished_o;
-  status_register(1)            <= latched_text_ready or text_ready_o;
-  status_register(2)            <= latched_word_processed or word_processed_o;
-  status_register(3)            <= latched_word_rdy_int;
-  status_register(4)            <= latched_finished_rdy_int;
-  status_register(31 downto 5)  <= (others => '0');
+  status_register_axi_lite <= status_register_internal;
 
-  control_register <= slv_reg0;
+  control_register_axi_lite <= slv_reg0;
   -- User logic ends
 
 end arch_imp;
