@@ -23,7 +23,9 @@ entity ascon_aead is
         text_i : in std_logic_vector(127 downto 0); -- current Plaintext input 128-bit word
         text_o : out std_logic_vector(127 downto 0); -- current output 128-bit word
         tag_o : out std_logic_vector(127 downto 0); -- authenticaction tag 128-bit word
-        text_len_i : in natural range 0 to 128 -- length of plaintext word used at last stage must be greater than 1
+        text_len_i : in natural range 0 to 128; -- length of plaintext word used at last stage must be greater than 1
+        stall_i : in std_logic; -- Make the permutation process stall on the last step
+        core_initialized_o : out std_logic 
     );
 end ascon_aead;
 
@@ -103,9 +105,9 @@ begin
                 start_core <= '0';
                 core_finished_latched <= '0';
                 core_out_latched <= (others => '0');
+                core_initialized_o <= '0';
             else
                 start_core <= '0';
-                --word_processed_o <= '0';
                 text_ready_o <= '0';
                 if core_finished = '1' then
                     core_finished_latched <= '1';
@@ -130,7 +132,6 @@ begin
                             core_finished_latched <= '0';
                             core_in <= core_out_latched;
                             
-                            -- word_processed_o <= '1';
                             start_core <= '1';
                             core_rounds <= 8;
 
@@ -138,6 +139,7 @@ begin
 
                             if associated_data_word_left_i = '1' then
                                 core_in(319 downto 192) <= core_out_latched(319 downto 192) xor assoc_data_i;
+                                core_initialized_o <= '1';
                                 curr_state <= associated_data;
                                 
                             elsif plaintext_word_left_i = '1' then
@@ -153,6 +155,7 @@ begin
                                 core_in(191 downto 128) <= core_out_latched(191 downto 128);
                                 core_in(127 downto 64) <= core_out_latched(127 downto 64) xor (key(127 downto 64));
                                 core_in(63) <= core_out_latched(63) xor '1' xor key(63);
+                                core_initialized_o <= '1';
                                 curr_state <= plaintext;
 
                             else
@@ -175,6 +178,7 @@ begin
                                 core_in(63) <= core_out_latched(63) xor '1' xor key(63);
 
                                 core_rounds <= 12;
+                                core_initialized_o <= '1';
                                 curr_state <= finalization;
                             end if;
                         end if;
@@ -185,7 +189,6 @@ begin
                             core_in <= core_out_latched;
 
                             start_core <= '1';
-                            -- word_processed_o <= '1';
                             core_rounds <= 8;
 
                             if associated_data_word_left_i = '1' then
@@ -232,7 +235,6 @@ begin
 
                             core_in <= core_out_latched;
                             start_core <= '1';
-                            -- word_processed_o <= '1';
 
                             if encrypt_mode_i = '1' then
                                 -- Encrypt
@@ -249,7 +251,6 @@ begin
                             if plaintext_word_left_i = '1' then
                                 core_rounds <= 8;
                             else
-                                
                                 core_in(191 downto 64) <= core_out_latched(191 downto 64) xor key;
                                 core_rounds <= 12;
                                 curr_state <= finalization;
@@ -266,6 +267,7 @@ begin
 
                     when finished =>
                         finished_o <= '1';
+                        core_initialized_o <= '0';
                         curr_state <= idle;
 
 
@@ -283,6 +285,7 @@ begin
         finished_o => core_finished,
         state_i => core_in,
         rounds_i => core_rounds,
-        state_o => core_out
+        state_o => core_out,
+        stall_i => stall_i
     );
 end Behavioral;

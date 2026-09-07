@@ -14,6 +14,9 @@ from util.simuutil import generate_clock, generate_state_log
 from reference.ascon import ascon_encrypt, ascon_decrypt, get_random_bytes
 from random import randint
 
+
+STALL_PROBABILITY = 3
+
 outp = ""
 plen = 0
 
@@ -49,6 +52,15 @@ def input_lists(assoc_data: str, text: str):
     return text_list, assoc_data_list, count_text, count_assoc_data, last_word_len
 
 
+
+async def modulate_stall(dut : copra_stubs.AsconAed):
+    while True:
+        if randint(1, 100) < STALL_PROBABILITY:
+            dut.stall_i.value = 1
+        else:
+            dut.stall_i.value = 0
+        await Timer(1000, unit="ns")
+
 async def generate_input(dut: copra_stubs.AsconAed, key, nonce, pt, ad):
     global plen
     logger = cocotb.log
@@ -58,6 +70,7 @@ async def generate_input(dut: copra_stubs.AsconAed, key, nonce, pt, ad):
     logger.debug("Nonce: " + nonce)
     logger.debug("Pt: " + pt)
     logger.debug("Ad: " + ad)
+
 
     i_associated_data = 0
     i_text = 0
@@ -80,6 +93,8 @@ async def generate_input(dut: copra_stubs.AsconAed, key, nonce, pt, ad):
     logger.debug(f"Plaintext data: {text_list}")
     logger.debug(f"Plaintext len: {count_text}")
 
+
+
     if count_assoc_data == 0:
         dut.associated_data_word_left_i.value = 0
         dut.text_i.value = int(text_list[0], 16)
@@ -98,11 +113,13 @@ async def generate_input(dut: copra_stubs.AsconAed, key, nonce, pt, ad):
     await dut.start_i.rising_edge
     
     while dut.finished_o.value != 1:
+
         await dut.core_finished.rising_edge
         dut.text_len_i.value = plen
         logger.debug(
             f"Count_a: {count_assoc_data} i_a: {i_associated_data}  Count_p: {count_text} i_p: {i_text} "
         )
+
 
         # More than 1 64-bit word total
         if count_assoc_data > 0 and i_associated_data < count_assoc_data:
@@ -206,6 +223,8 @@ async def test_for_hex(dut: copra_stubs.AsconAed, key, nonce, pt, ad, ciphertext
     logger = cocotb.log
     logger.setLevel(logging.INFO)
 
+
+
     outp = ""
     dut.encrypt_mode_i.value = 1
     dut.start_i.value = 0
@@ -215,6 +234,7 @@ async def test_for_hex(dut: copra_stubs.AsconAed, key, nonce, pt, ad, ciphertext
 
     dut.start_i.value = 1
 
+    stall_task = cocotb.start_soon(modulate_stall(dut))
     encryption_task = cocotb.start_soon(generate_input(dut, key, nonce, pt, ad))
 
     await Timer(60, unit="ns")
@@ -282,6 +302,7 @@ async def test_for_hex(dut: copra_stubs.AsconAed, key, nonce, pt, ad, ciphertext
 
     await Timer(20, unit="ns")
     decryption_task.cancel()
+    stall_task.cancel()
     return
 
 
@@ -293,7 +314,7 @@ def setup_testbench(dut: copra_stubs.AsconAed):
     cocotb.start_soon(log_core_input(dut))
 
 
-@cocotb.test()
+@cocotb.test(timeout_time=8000, timeout_unit="us")
 async def test_ascon_aead_kat(dut: copra_stubs.AsconAed):
     global outp
     logger = cocotb.log

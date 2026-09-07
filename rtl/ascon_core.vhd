@@ -11,7 +11,8 @@ entity ascon_core is
         finished_o : out std_logic; -- finished signal
         state_i : in std_logic_vector(319 downto 0); -- input state
         rounds_i : in natural; -- rounds to perform between 1 and 16
-        state_o : out std_logic_vector(319 downto 0) -- final state
+        state_o : out std_logic_vector(319 downto 0); -- final state
+        stall_i : in std_logic
     );
 end ascon_core;
 
@@ -55,17 +56,17 @@ begin
 
                     when running =>
                         if round_counter = rounds_to_perform then
-                            round_counter <= 0;
-                            finished_o <= '1';
-                            
+                            if stall_i ='0' then
+                                round_counter <= 0;
+                                finished_o <= '1';
 
-                            state_o <= internal_state;
-                            curr_state <= finished;
+                                state_o <= internal_state;
+                                curr_state <= finished;
+                            end if;
                         else
                             round_counter <= round_counter + 1;
                             internal_state <= linear_diffusion;
                         end if;
-
                     when finished =>
                         state_o <= (others => '0');
                         finished_o <= '0';

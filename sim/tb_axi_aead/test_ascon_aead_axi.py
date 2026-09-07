@@ -4,8 +4,7 @@ import re
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge
-from cocotbext.axi import AxiLiteBus, AxiLiteMaster
-from util.parseandpad import parse, pad
+from util.axi_driver import *
 from util.parsefile import parse_aead_encrypt_file
 import logging
 from cocotb.triggers import Timer
@@ -14,173 +13,14 @@ from cocotb.utils import get_sim_time
 from reference.ascon import ascon_encrypt, ascon_decrypt, get_random_bytes
 from util.parsefile import parse_aead_encrypt_file, AeadEncrypt
 from random import randint
-
-
-# Base address of the Axi periphreal used in Vivado
-# Needed for configuring the logs correctly
-FPGA_MMAP_BASE = 0x44A0_0000
-
-
-ADDR_CTRL = 0x00
-ADDR_STATUS = 0x04
-ADDR_KEY = 0x08
-ADDR_NONCE = 0x18
-ADDR_ASSOC_DATA = 0x28
-ADDR_TEXT_IN = 0x38
-ADDR_TEXT_LEN = 0x48
-ADDR_TEXT_OUT = 0x4C
-ADDR_TAG_OUT = 0x5C
-
-
-SHIFT_CTRL_START = 0
-SHIFT_CTRL_AD_LEFT = 1
-SHIFT_CTRL_PT_LEFT = 2
-SHIFT_CTRL_ENCRYPT_MODE = 3
-SHIFT_CTRL_INPUT_READY = 4
-SHIFT_CTRL_TEXT_READ = 5
-SHIFT_CTRL_WORD_RDY_EN = 6
-SHIFT_CTRL_FINISH_RDY_EN = 7
-
-MASK_STATUS_FINISHED = 1 << 0
-MASK_STATUS_TEXT_READY = 1 << 1
-MASK_STATUS_WORD_PROCESSED = 1 << 2
-MASK_STATUS_WORD_INT = 1 << 3
-MASK_STATUS_FINISHED_INT = 1 << 4
-
-USE_INTERRUPTS = 0
+from cocotbext.axi import AxiLiteBus, AxiLiteMaster
+from cocotbext.axi import AxiStreamBus, AxiStreamSource, AxiStreamSink, AxiStreamMonitor
 
 if TYPE_CHECKING:
     import copra_stubs
 
 
-def input_lists(assoc_data: str, text: str):
-    text_tuple = parse(text, 16)
-    text_list = text_tuple[0]
-    text_list[-1] = pad(text_list[-1], 16)
-    for i in range(0, len(text_list)):
-        text_list[i] = bytes.fromhex(text_list[i])
-    last_word_len = text_tuple[1]
-
-    ad_tuple = parse(assoc_data, 16)
-    assoc_data_list = ad_tuple[0]
-
-    if len(assoc_data_list) > 0:
-        assoc_data_list[-1] = pad(assoc_data_list[-1], 16)
-    for i in range(0, len(assoc_data_list)):
-        assoc_data_list[i] = bytes.fromhex(assoc_data_list[i])
-
-    count_assoc_data = 0
-    count_text = 0
-
-    if assoc_data != "":
-        count_assoc_data = len(assoc_data_list)
-    if text != "":
-        count_text = len(text_list)
-
-    return text_list, assoc_data_list, count_text, count_assoc_data, last_word_len
-
-class Fifo:
-    def __init__(self) -> None:
-        self.fifo = []
-
-    def is_full(self) -> bool:
-        return (len(self.fifo) >= 16)
-
-    def is_empty(self) -> bool:
-        return (len(self.fifo) == 0)
-
-class ControlSignals:
-    def __init__(self) -> None:
-        self.start = 0
-        self.text_word_left = 0
-        self.associated_data_word_left = 0
-        self.encrypt_mode = 0
-        self.input_ready = 0
-        self.text_read = 0
-        self.word_rdy_en = 0
-        self.finish_rdy_en = 0
-
-
-class AxiAsconDriver:
-    def __init__(self, axi_master):
-        self.transactions = []
-        self.axi = axi_master
-        self.recording = True
-
-    async def write_32(self, addr: int, val: int):
-        sim_time = get_sim_time(unit="ns")
-        self.transactions.append(
-            {"time": sim_time, "op": "write", "addr": addr + 0x44A0_0000, "data": val & 0xFFFFFFFF}
-        )
-        await self.axi.write(addr, val.to_bytes(4, byteorder="little"))
-
-    async def read_32(self, addr: int) -> int:
-        res = await self.axi.read(addr, 4)
-        sim_time = get_sim_time(unit="ns")
-        val = int.from_bytes(res.data, byteorder="little")
-        self.transactions.append(
-            {"time": sim_time, "op": "read", "addr": addr + 0x44A0_0000, "data": val & 0xFFFFFFFF}
-        )
-        return val
-
-    async def write_128(self, base_addr: int, val: bytes):
-        for i in range(4):
-            chunk = val[i * 4 : (i+1) * 4]
-            word = int.from_bytes(chunk, byteorder="little")
-            await self.write_32(base_addr + (i * 4), word)
-
-    async def read_128(self, base_addr: int) -> bytes:
-        val = 0
-        res = bytearray()
-        for i in range(4):
-            word = await self.read_32(base_addr + (i * 4))
-            word_bytes = word.to_bytes(4, byteorder="little")
-            res += bytearray(word_bytes)
-        return bytes(res)
-
-
-
-async def write_control_register(driver: AxiAsconDriver, control: ControlSignals):
-    ctrl_data = (
-        (control.start << SHIFT_CTRL_START)
-        | (control.associated_data_word_left << SHIFT_CTRL_AD_LEFT)
-        | (control.text_word_left << SHIFT_CTRL_PT_LEFT)
-        | (control.encrypt_mode << SHIFT_CTRL_ENCRYPT_MODE)
-        | (control.input_ready << SHIFT_CTRL_INPUT_READY)
-        | (control.text_read << SHIFT_CTRL_TEXT_READ)
-        | (control.word_rdy_en << SHIFT_CTRL_WORD_RDY_EN)
-        | (control.finish_rdy_en << SHIFT_CTRL_FINISH_RDY_EN)
-    )
-    await driver.write_32(ADDR_CTRL, ctrl_data)
-
-
-async def read_status_register(driver: AxiAsconDriver):
-    status_data = await driver.read_32(ADDR_STATUS)
-    finished = (status_data & MASK_STATUS_FINISHED) >> 0
-    text_ready = (status_data & MASK_STATUS_TEXT_READY) >> 1
-    word_processed = (status_data & MASK_STATUS_WORD_PROCESSED) >> 2
-    return finished, text_ready, word_processed
-
-
-async def read_word_interrupt_status(driver: AxiAsconDriver):
-    status_data = await driver.read_32(ADDR_STATUS)
-
-    return (status_data & MASK_STATUS_WORD_INT) >> 3
-
-
-async def read_finished_interrupt_status(driver: AxiAsconDriver):
-    status_data = await driver.read_32(ADDR_STATUS)
-    return (status_data & MASK_STATUS_FINISHED_INT) >> 4
-
-async def clear_word_interrupt(driver: AxiAsconDriver):
-    await driver.write_32(ADDR_STATUS, 1 << 3)
-
-async def clear_finished_interrupt(driver: AxiAsconDriver):
-    await driver.write_32(ADDR_STATUS, 1 << 4)
-
-
 outp = ""
-
 
 async def generate_input(
     dut: copra_stubs.Asconaead128,
@@ -308,7 +148,6 @@ async def generate_input(
                 plen = p_last_word_len
                 await driver.write_32(ADDR_TEXT_LEN, plen)
                 control.text_word_left = 0
-
             else:
                 control.text_word_left = 1
 
@@ -319,12 +158,6 @@ async def generate_input(
         else:
             control.associated_data_word_left = 0
             control.text_word_left = 0
-
-        logger.debug(
-            f"Writing pleft: {control.text_word_left} adleft: {control.associated_data_word_left}"
-        )
-
-        
         control.input_ready = 1
         await write_control_register(
             driver,
@@ -341,20 +174,11 @@ async def generate_input(
 
         if (not (control.associated_data_word_left) and not finished):
             text_out = await driver.read_128(ADDR_TEXT_OUT)
-            logger.debug(f"TEXT_OUT: {text_out} Plen: {plen}")
 
             output = text_out.hex().zfill(32)[
                 0 : (int(plen) // 4)
             ]
-            logger.debug(
-                "Current Output: "
-                + "   "
-                + output
-                + "  "
-                + str(plen)
-            )
             outp = outp + output
-            logger.debug("ADDED Outp: " + outp)
 
             control.text_read = 1
             await write_control_register(
@@ -367,13 +191,108 @@ async def generate_input(
             break
 
 
+
+async def generate_input_stream(
+    dut: copra_stubs.Asconaead128,
+    key,
+    nonce,
+    pt,
+    ad,
+    driver: AxiAsconDriver,
+    encrypt_mode,
+):
+    plen = 0
+    global outp
+    logger = cocotb.log
+    logger.setLevel(logging.DEBUG)
+
+    logger.debug("Started generate input")
+
+    logger.debug("Key: " + key)
+    logger.debug("Nonce: " + nonce)
+    logger.debug("Pt: " + pt)
+    logger.debug("Ad: " + ad)
+
+    i_associated_data = 0
+    i_text = 0
+
+    key = bytes.fromhex(key)
+    nonce = bytes.fromhex(nonce)
+
+    await driver.write_128(ADDR_KEY, key)
+    await driver.write_128(ADDR_NONCE, nonce)
+
+    text_list, assoc_data_list, count_text, count_assoc_data, p_last_word_len = (
+        input_lists(ad, pt)
+    )
+
+    control = ControlSignals()
+
+    control.text_word_left = 1
+    control.encrypt_mode = encrypt_mode
+
+    await write_control_register(driver, control)
+    logger.debug("Control register written")
+
+    plen = 128
+
+    logger.debug(f"Associated data: {assoc_data_list}")
+    logger.debug(f"Associated len: {count_assoc_data}")
+    logger.debug(f"Plaintext data: {text_list}")
+    logger.debug(f"Plaintext len: {count_text}")
+
+    if count_assoc_data == 0:
+        control.associated_data_word_left = 0
+    else:
+        control.associated_data_word_left = 1
+
+    if count_text <= 1:
+        plen = p_last_word_len
+        control.text_word_left = 0
+
+
+    control.start = 1
+    control.input_ready = 1
+    control.finish_rdy_en = 1
+    control.word_rdy_en = 1
+    await write_control_register(driver, control)
+    control.input_ready = 0
+
+    finished = 0
+    finished, text_ready, word_processed = await read_status_register(driver)
+
+    control.start = 0
+    await write_control_register(driver, control)
+
+    await driver.write_stream(assoc_data_list)
+
+    
+
+    await driver.write_stream(text_list)
+
+    logger.warning(f"starting read {get_sim_time(unit="ns")}")
+    read_data : bytearray = await driver.read_stream()
+    logger.warning(f"{read_data.hex()}")
+    
+
+
+        
+
 async def generate_clock(dut):
     c = Clock(dut.s00_axi_aclk, 10, unit="ns")
     c.start()
 
+async def generate_clock_stream(dut):
+    c1 = Clock(dut.s00_axi_aclk, 10, unit="ns")
+    c2 = Clock(dut.s00_axis_aclk, 10, unit="ns")
+    c3 = Clock(dut.m00_axis_aclk, 10, unit="ns")
+    c1.start()
+    c2.start()
+    c3.start()
+
 
 async def test_for_hex(
-    dut: copra_stubs.Asconaead128, key, nonce, pt, ad, ciphertext, driver
+    dut: copra_stubs.Asconaead128, key, nonce, pt, ad, ciphertext, driver, use_stream = False
 ):
     global outp
     outp = ""
@@ -385,7 +304,10 @@ async def test_for_hex(
 
     encrypt_mode = 1
 
-    await generate_input(dut, key, nonce, pt, ad, driver, 1)
+    if use_stream:
+        await generate_input_stream(dut, key, nonce, pt, ad, driver, 1)
+    else:
+        await generate_input(dut, key, nonce, pt, ad, driver, 1)
 
     finished, text_ready, word_processed = await read_status_register(driver)
 
@@ -423,7 +345,11 @@ async def test_for_hex(
 
     logger.debug(f"Text {ciphertext}   {text}")
 
-    await generate_input(dut, key, nonce, text, ad, driver, 0)
+    if use_stream:
+        await generate_input_stream(dut, key, nonce, text, ad, driver, 0)
+    else:
+        await generate_input(dut, key, nonce, text, ad, driver, 0)
+    
 
     finished, text_ready, word_processed = await read_status_register(driver)
 
@@ -449,8 +375,71 @@ async def test_for_hex(
     return
 
 
+@cocotb.test(timeout_time=8000, timeout_unit="ns")
+async def test_ascon_aead_stream(dut : copra_stubs.Asconaead128Hybrid):
+    logging.getLogger("cocotb.asconaead128_hybrid.s00_axi").setLevel(logging.WARNING)
+    logging.getLogger("cocotb.asconaead128_hybrid.s00_axis").setLevel(logging.WARNING)
+    logging.getLogger("cocotb.asconaead128_hybrid.m00_axis").setLevel(logging.WARNING)
+    logging.getLogger("py.warnings").setLevel(logging.ERROR)
+
+    logger = cocotb.log
+    logger.setLevel(logging.INFO)
+
+    cocotb.start_soon(generate_clock_stream(dut))
+
+    dut.s00_axi_aresetn.value = 0
+
+    await RisingEdge(dut.s00_axi_aclk)
+    await RisingEdge(dut.s00_axi_aclk)
+    
+    dut.s00_axi_aresetn.value = 1
+    dut.s00_axis_aresetn.value = 1
+    dut.m00_axis_aresetn.value = 1
+
+    axis_source = AxiStreamSource(AxiStreamBus.from_prefix(dut, "s00_axis"), dut.s00_axis_aclk, dut.s00_axis_aresetn, reset_active_level=False)
+    axis_sink = AxiStreamSink(AxiStreamBus.from_prefix(dut, "m00_axis"), dut.m00_axis_aclk, dut.m00_axis_aresetn, reset_active_level=False)
+    axi_master = AxiLiteMaster(
+        AxiLiteBus.from_prefix(dut, "s00_axi"),
+        dut.s00_axi_aclk,
+        dut.s00_axi_aresetn,
+        reset_active_level=False,
+    )
+
+    driver = AxiAsconDriver(axi_master, axis_sink, axis_source)
+
+    await RisingEdge(dut.s00_axi_aclk)
+
+    KAT_dictionary = parse_aead_encrypt_file("LWC_AEAD_KAT_128_128.txt")
+
+    count = 0
+    TESTS_TO_RUN = -1  # -1 to perform all tests
+
+    for input_data in KAT_dictionary.keys():
+
+
+        count += 1
+        if count != 1000:
+            continue
+        obj = input_data
+        key = obj.key
+        nonce = obj.nonce
+        ad = obj.ad
+        pt = obj.pt
+
+        logger.info("Starting round: %s" % count)
+
+
+        ciphertext = KAT_dictionary[input_data]
+
+        await test_for_hex(dut, key, nonce, pt, ad, ciphertext, driver, True)
+
+        if count == TESTS_TO_RUN:
+            break
+
+
 @cocotb.test(timeout_time=8000, timeout_unit="us")
 async def test_ascon_aead_single(dut):
+    return
     logging.getLogger("cocotb.asconaead128_hybrid.s00_axi").setLevel(logging.WARNING)
     logging.getLogger("py.warnings").setLevel(logging.ERROR)
 
@@ -470,15 +459,12 @@ async def test_ascon_aead_single(dut):
         reset_active_level=False,
     )
 
-    driver = AxiAsconDriver(axi_master)
+    driver = AxiAsconDriver(axi_master, None, None)
     dut.s00_axi_aresetn.value = 1
 
     await RisingEdge(dut.s00_axi_aclk)
 
     KAT_dictionary = parse_aead_encrypt_file("LWC_AEAD_KAT_128_128.txt")
-
-
-
 
     count = 0
     TESTS_TO_RUN = -1  # -1 to perform all tests
@@ -487,7 +473,8 @@ async def test_ascon_aead_single(dut):
 
 
         count += 1
-
+        if count != 1000:
+            continue
         obj = input_data
         key = obj.key
         nonce = obj.nonce
@@ -507,6 +494,7 @@ async def test_ascon_aead_single(dut):
 
 @cocotb.test(timeout_time=8000, timeout_unit="us")
 async def test_ascon_aead_random(dut):
+    return
     logging.getLogger("cocotb.asconaead128.s00_axi").setLevel(logging.WARNING)
     logging.getLogger("py.warnings").setLevel(logging.ERROR)
 

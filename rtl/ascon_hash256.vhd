@@ -152,7 +152,8 @@ begin
         start_i => start_core,
         finished_o => core_finished,
         state_i => core_in,
-        state_o => core_out
+        state_o => core_out,
+        stall_i => '0'
     );
     
 end Behavioral;
