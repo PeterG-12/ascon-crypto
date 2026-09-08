@@ -90,6 +90,8 @@ entity AsconAead128_hybrid_slave_lite_v1_0_S00_AXI is
     status_register_axi_lite  : out std_logic_vector(31 downto 0);
     control_register_axi_lite : out std_logic_vector(31 downto 0);
     text_len_axi_lite         : out natural range 0 to 128;
+    associated_data_count     : out natural range 0 to 128;
+    text_count                : out natural range 0 to 128;
     start_core_axi_lite       : in std_logic;
 
     finished_axi_lite       : in std_logic;
@@ -152,6 +154,8 @@ architecture arch_imp of AsconAead128_hybrid_slave_lite_v1_0_S00_AXI is
   signal slv_reg24  : std_logic_vector(C_S_AXI_DATA_WIDTH - 1 downto 0);
   signal slv_reg25  : std_logic_vector(C_S_AXI_DATA_WIDTH - 1 downto 0);
   signal slv_reg26  : std_logic_vector(C_S_AXI_DATA_WIDTH - 1 downto 0);
+  signal slv_reg27  : std_logic_vector(C_S_AXI_DATA_WIDTH - 1 downto 0);
+  signal slv_reg28  : std_logic_vector(C_S_AXI_DATA_WIDTH - 1 downto 0);
   signal byte_index : integer;
 
   signal mem_logic : std_logic_vector(ADDR_LSB + OPT_MEM_ADDR_BITS downto ADDR_LSB);
@@ -296,6 +300,8 @@ begin
         slv_reg24 <= (others => '0');
         slv_reg25 <= (others => '0');
         slv_reg26 <= (others => '0');
+        slv_reg27 <= (others => '0');
+        slv_reg28 <= (others => '0');
       else
         if (S_AXI_WVALID = '1') then
           case (mem_logic) is
@@ -515,6 +521,23 @@ begin
                   slv_reg26(byte_index * 8 + 7 downto byte_index * 8) <= S_AXI_WDATA(byte_index * 8 + 7 downto byte_index * 8);
                 end if;
               end loop;
+
+            when b"11011" =>
+              for byte_index in 0 to (C_S_AXI_DATA_WIDTH/8 - 1) loop
+                if (S_AXI_WSTRB(byte_index) = '1') then
+                  -- Respective byte enables are asserted as per write strobes                   
+                  -- slave registor 27
+                  slv_reg27(byte_index * 8 + 7 downto byte_index * 8) <= S_AXI_WDATA(byte_index * 8 + 7 downto byte_index * 8);
+                end if;
+              end loop;
+            when b"11100" =>
+              for byte_index in 0 to (C_S_AXI_DATA_WIDTH/8 - 1) loop
+                if (S_AXI_WSTRB(byte_index) = '1') then
+                  -- Respective byte enables are asserted as per write strobes                   
+                  -- slave registor 28
+                  slv_reg28(byte_index * 8 + 7 downto byte_index * 8) <= S_AXI_WDATA(byte_index * 8 + 7 downto byte_index * 8);
+                end if;
+              end loop;
             when others =>
               slv_reg0  <= slv_reg0;
               slv_reg1  <= slv_reg1;
@@ -543,6 +566,9 @@ begin
               slv_reg24 <= slv_reg24;
               slv_reg25 <= slv_reg25;
               slv_reg26 <= slv_reg26;
+              slv_reg27 <= slv_reg27;
+              slv_reg28 <= slv_reg28;
+
           end case;
         end if;
         if start_core_axi_lite = '1' then
@@ -634,6 +660,8 @@ begin
   associated_data_axi_lite <= slv_reg11 & slv_reg10 & slv_reg13 & slv_reg12;
   text_in_axi_lite         <= slv_reg15 & slv_reg14 & slv_reg17 & slv_reg16;
   text_len_axi_lite        <= to_integer(unsigned(slv_reg18));
+  text_len_axi_lite        <= to_integer(unsigned(slv_reg27));
+  text_len_axi_lite        <= to_integer(unsigned(slv_reg28));
 
   -- Handle latching and clearing 1-cycle signals
   process (S_AXI_ACLK)

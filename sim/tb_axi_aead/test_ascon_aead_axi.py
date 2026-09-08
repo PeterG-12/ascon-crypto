@@ -268,9 +268,15 @@ async def generate_input_stream(
     control.start = 0
     await write_control_register(driver, control)
 
-    await driver.write_stream(assoc_data_list)
-    
-    await driver.write_stream(text_list)
+    logger.warning(f"State {control.associated_data_word_left}  {control.text_word_left}")
+
+
+    if count_assoc_data > 0:
+        logger.warning(f"starting write ad {get_sim_time(unit="ns")}")
+        await driver.write_stream(assoc_data_list)
+    if count_text > 0:
+        logger.warning(f"starting write txt {get_sim_time(unit="ns")}")
+        await driver.write_stream(text_list)
 
     logger.warning(f"starting read {get_sim_time(unit="ns")}")
     read_data : bytearray = await driver.read_stream()
@@ -379,7 +385,18 @@ async def test_for_hex(
     return
 
 
-@cocotb.test(timeout_time=8000, timeout_unit="ns")
+
+
+
+DEBUG = 1
+
+if DEBUG == 1:
+    unit = "ns"
+else:
+    unit = "us" 
+
+
+@cocotb.test(timeout_time=8000, timeout_unit=unit)
 async def test_ascon_aead_stream(dut : copra_stubs.Asconaead128Hybrid):
     logging.getLogger("cocotb.asconaead128_hybrid.s00_axi").setLevel(logging.WARNING)
     logging.getLogger("cocotb.asconaead128_hybrid.s00_axis").setLevel(logging.WARNING)
@@ -422,8 +439,11 @@ async def test_ascon_aead_stream(dut : copra_stubs.Asconaead128Hybrid):
 
 
         count += 1
-        if count != 1007:
-            continue
+        
+        if DEBUG:
+            if count != 17:
+                continue
+        
         obj = input_data
         key = obj.key
         nonce = obj.nonce
@@ -434,7 +454,7 @@ async def test_ascon_aead_stream(dut : copra_stubs.Asconaead128Hybrid):
 
 
         ciphertext = KAT_dictionary[input_data]
-
+        logger.warning(f"PT = {pt} AD = {ad}   CT = {ciphertext}")
         await test_for_hex(dut, key, nonce, pt, ad, ciphertext, driver, True)
 
         if count == TESTS_TO_RUN:

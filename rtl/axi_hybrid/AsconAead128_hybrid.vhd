@@ -74,19 +74,21 @@ architecture arch_imp of AsconAead128_hybrid is
   -- User signals
   signal reset_active_high : std_logic := '0';
 
-  signal key_axi_lite              : std_logic_vector(127 downto 0) := (others => '0');
-  signal nonce_axi_lite            : std_logic_vector(127 downto 0) := (others => '0');
-  signal tag_axi_lite              : std_logic_vector(127 downto 0) := (others => '0');
-  signal text_out_axi_lite         : std_logic_vector(127 downto 0) := (others => '0');
-  signal text_in_axi_lite          : std_logic_vector(127 downto 0) := (others => '0');
-  signal associated_data_axi_lite  : std_logic_vector(127 downto 0) := (others => '0');
-  signal status_register_axi_lite  : std_logic_vector(31 downto 0)  := (others => '0');
-  signal control_register_axi_lite : std_logic_vector(31 downto 0)  := (others => '0');
-  signal text_len_axi_lite         : natural range 0 to 128         := 0;
-  signal start_core_axi_lite       : std_logic                      := '0';
-  signal finished_axi_lite         : std_logic;
-  signal text_ready_axi_lite       : std_logic;
-  signal word_processed_axi_lite   : std_logic;
+  signal key_axi_lite                   : std_logic_vector(127 downto 0) := (others => '0');
+  signal nonce_axi_lite                 : std_logic_vector(127 downto 0) := (others => '0');
+  signal tag_axi_lite                   : std_logic_vector(127 downto 0) := (others => '0');
+  signal text_out_axi_lite              : std_logic_vector(127 downto 0) := (others => '0');
+  signal text_in_axi_lite               : std_logic_vector(127 downto 0) := (others => '0');
+  signal associated_data_axi_lite       : std_logic_vector(127 downto 0) := (others => '0');
+  signal status_register_axi_lite       : std_logic_vector(31 downto 0)  := (others => '0');
+  signal control_register_axi_lite      : std_logic_vector(31 downto 0)  := (others => '0');
+  signal text_len_axi_lite              : natural range 0 to 128         := 0;
+  signal associated_data_count_axi_lite : natural range 0 to 128         := 0;
+  signal text_count_axi_lite            : natural range 0 to 128         := 0;
+  signal start_core_axi_lite            : std_logic                      := '0';
+  signal finished_axi_lite              : std_logic;
+  signal text_ready_axi_lite            : std_logic;
+  signal word_processed_axi_lite        : std_logic;
 
   signal stream_slave_counter  : natural range 0 to 4 := 0;
   signal stream_master_counter : natural range 0 to 4 := 0;
@@ -112,12 +114,12 @@ architecture arch_imp of AsconAead128_hybrid is
 
   signal input_ready_stream : std_logic := '0';
 
-  signal core_initialized            : std_logic := '0';
-  signal associated_data_left_stream : std_logic := '0';
-  signal text_left_stream            : std_logic := '0';
-
-  signal start_latched : std_logic := '0';
-  signal last_latched  : std_logic := '0';
+  signal core_initialized            : std_logic              := '0';
+  signal associated_data_left_stream : std_logic              := '0';
+  signal text_left_stream            : std_logic              := '0';
+  signal text_len_stream             : natural range 0 to 128 := 0;
+  signal start_latched               : std_logic              := '0';
+  signal last_latched                : std_logic              := '0';
 
   signal asscociated_data_state : natural range 0 to 2 := 0;
   -- User signals end
@@ -187,20 +189,6 @@ begin
         if s00_axis_tlast = '1' then
           last_latched <= '1';
         end if;
-
-        if core_initialized = '1' then
-          if control_register_axi_lite(1) = '1' and (last_latched = '1' or s00_axis_tlast = '1') then
-            asscociated_data_state <= 1;
-            last_latched <= '0';
-          end if;
-          if associated_data_left_stream = '0' and control_register_axi_lite(2) = '1' and (last_latched = '1' or s00_axis_tlast = '1') then
-            text_left_stream <= '0';
-            last_latched     <= '0';
-            -- Block moving to ready if no words left
-            stream_slave_state <= Idle;
-          end if;
-        end if;
-
         case stream_slave_state is
           when Idle =>
             -- Start rising edge
@@ -209,18 +197,28 @@ begin
               start_latched      <= '1';
               input_ready_stream <= '1';
 
-              if control_register_axi_lite(1) then
-                asscociated_data_state <= 2;
+              -- AD word left
+              if control_register_axi_lite(1) = '1' then
+                asscociated_data_state      <= 2;
                 associated_data_left_stream <= '1';
               end if;
-              
+
+              -- Text word left
+              if control_register_axi_lite(2) = '1' then
+                text_len_stream <= 128;
+              end if;
+
+              if control_register_axi_lite(1) = '0' and control_register_axi_lite(2) = '0' then
+                text_in_holder(0) <= x"00000001";
+              end if;
+
               text_left_stream <= control_register_axi_lite(2);
             end if;
 
             if start_latched = '1' then
               input_ready_stream <= '0';
-              s00_axis_tready    <= '1';
               start_latched      <= '0';
+              s00_axis_tready    <= '1';
               stream_slave_state <= Ready;
             end if;
 
@@ -235,8 +233,16 @@ begin
 
             -- Block moving to ready if no words left
             if text_left_stream = '0' and associated_data_left_stream = '0' then
+              s00_axis_tready    <= '0';
               stream_slave_state <= Idle;
               input_ready_stream <= '1';
+            end if;
+
+            if asscociated_data_state = 1 and word_processed_axi_lite = '1' then
+              input_ready_stream          <= '1';
+              asscociated_data_state      <= 0;
+              associated_data_left_stream <= '0';
+
             end if;
 
           when Ready =>
@@ -250,13 +256,39 @@ begin
                 s00_axis_tready      <= '0';
                 input_ready_stream   <= '1';
                 if asscociated_data_state = 1 then
-                  asscociated_data_state <= 0;
+                  asscociated_data_state      <= 0;
                   associated_data_left_stream <= '0';
                 end if;
               end if;
             end if;
           when others => null;
         end case;
+
+        if core_initialized = '1' then
+          if control_register_axi_lite(1) = '1' and (last_latched = '1' or s00_axis_tlast = '1') then
+            asscociated_data_state <= 1;
+            last_latched           <= '0';
+            -- Empty text edgacase
+            if control_register_axi_lite(2) = '0' then
+              s00_axis_tready    <= '0';
+              stream_slave_state <= Idle;
+              text_in_holder(3)  <= (others => '0');
+              text_in_holder(2)  <= (others => '0');
+              text_in_holder(1)  <= (others => '0');
+              text_in_holder(0)  <= x"00000001";
+
+              --input_ready_stream <= '1';
+            end if;
+          end if;
+          if associated_data_left_stream = '0' and control_register_axi_lite(2) = '1' and (last_latched = '1' or s00_axis_tlast = '1') then
+            text_left_stream <= '0';
+            text_len_stream  <= text_len_axi_lite;
+            last_latched     <= '0';
+            -- Block moving to ready if no words left
+            s00_axis_tready    <= '0';
+            stream_slave_state <= Idle;
+          end if;
+        end if;
       end if;
     end if;
   end process;
@@ -280,30 +312,28 @@ begin
             m00_axis_tvalid <= '0';
             m00_axis_tdata  <= (others => '0');
             if text_ready_axi_lite = '1' and stream_master_counter = 0 then
-              m00_axis_tvalid     <= '1';
-              out_buffer_fill     <= '1';
+              m00_axis_tvalid <= '1';
+              out_buffer_fill <= '1';
 
-              stream_master_state <= Valid;
+              stream_master_state   <= Valid;
               stream_master_counter <= stream_master_counter + 1;
 
               text_out_holder(3) <= text_out_stream(63 downto 32);
               text_out_holder(2) <= text_out_stream(31 downto 0);
               text_out_holder(1) <= text_out_stream(127 downto 96);
-              m00_axis_tdata <= text_out_stream(95 downto 64);
+              m00_axis_tdata     <= text_out_stream(95 downto 64);
               --text_out_holder(0) <= text_out_stream(95 downto 64);
             end if;
 
             if finished_axi_lite = '1' and stream_master_counter = 0 then
-              m00_axis_tvalid     <= '1';
-              
-              stream_master_state <= Valid_tag;
-              stream_master_counter <= stream_master_counter + 1;
-              
+              m00_axis_tvalid <= '1';
 
-              tag_holder(3) <= tag_axi_lite(63 downto 32);
-              tag_holder(2) <= tag_axi_lite(31 downto 0);
-              tag_holder(1) <= tag_axi_lite(127 downto 96);
-              m00_axis_tdata <= tag_axi_lite(95 downto 64);
+              stream_master_state   <= Valid_tag;
+              stream_master_counter <= stream_master_counter + 1;
+              tag_holder(3)         <= tag_axi_lite(63 downto 32);
+              tag_holder(2)         <= tag_axi_lite(31 downto 0);
+              tag_holder(1)         <= tag_axi_lite(127 downto 96);
+              m00_axis_tdata        <= tag_axi_lite(95 downto 64);
               --tag_holder(0) <= tag_axi_lite(95 downto 64);
             end if;
 
@@ -329,7 +359,7 @@ begin
                 stream_master_state   <= Idle;
                 out_buffer_fill       <= '0';
                 stream_master_counter <= 0;
-                m00_axis_tlast <= '1';
+                m00_axis_tlast        <= '1';
               end if;
             end if;
           when others => null;
@@ -363,9 +393,11 @@ begin
         text_i                      => text_in_stream,
         text_o                      => text_out_stream,
         tag_o                       => tag_axi_lite,
-        text_len_i                  => text_len_axi_lite,
+        text_len_i                  => text_len_stream,
         stall_i                     => out_buffer_fill,
-        core_initialized_o          => core_initialized
+        core_initialized_o          => core_initialized,
+        associated_data_count       => associated_data_count_axi_lite,
+        text_count                  => text_count_axi_lite
       );
   end generate;
 
@@ -393,7 +425,9 @@ begin
         tag_o                       => tag_axi_lite,
         text_len_i                  => text_len_axi_lite,
         stall_i                     => '0',
-        core_initialized_o          => core_initialized
+        core_initialized_o          => core_initialized,
+        associated_data_count       => associated_data_count_axi_lite,
+        text_count                  => text_count_axi_lite
       );
   end generate;
   -- User logic ends
