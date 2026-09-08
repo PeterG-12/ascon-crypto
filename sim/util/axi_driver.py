@@ -128,9 +128,7 @@ class AxiAsconDriver:
         await self.axis_source.wait()
 
     async def read_stream(self) -> bytearray:
-        print("READIN' 2...")
         res = await self.axis_sink.recv()
-        print(f"RECEIVED'... {res.tdata}")
         return res.tdata
 
     async def write_32_stream(self, val):

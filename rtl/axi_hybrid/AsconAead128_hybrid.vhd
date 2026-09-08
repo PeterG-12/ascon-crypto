@@ -116,8 +116,10 @@ architecture arch_imp of AsconAead128_hybrid is
   signal associated_data_left_stream : std_logic := '0';
   signal text_left_stream            : std_logic := '0';
 
-  signal start_latched : std_logic := '0';
-  signal last_latched  : std_logic := '0';
+  signal start_latched   : std_logic              := '0';
+  signal last_latched    : std_logic              := '0';
+  signal text_len_stream : natural range 0 to 128 := 0;
+
   -- User signals end
 
 begin
@@ -168,10 +170,8 @@ begin
       module_interrupt_o => module_interrupt_o
     );
 
-  text_in_stream <= text_in_holder(1) & text_in_holder(0) & text_in_holder(3) & text_in_holder(2);
+  text_in_stream         <= text_in_holder(1) & text_in_holder(0) & text_in_holder(3) & text_in_holder(2);
   associated_data_stream <= associated_data_holder(1) & associated_data_holder(0) & associated_data_holder(3) & associated_data_holder(2);
-
-
   axi_stream_slave : process (s00_axis_aclk)
   begin
     if rising_edge(s00_axi_aclk) then
@@ -195,6 +195,7 @@ begin
           end if;
           if associated_data_left_stream = '0' and control_register_axi_lite(2) = '1' and (last_latched = '1' or s00_axis_tlast = '1') then
             text_left_stream <= '0';
+            text_len_stream  <= text_len_axi_lite;
             last_latched     <= '0';
             -- Block moving to ready if no words left
             stream_slave_state <= Idle;
@@ -211,17 +212,22 @@ begin
               input_ready_stream          <= '1';
               associated_data_left_stream <= control_register_axi_lite(1);
               text_left_stream            <= control_register_axi_lite(2);
+              if control_register_axi_lite(2) = '1' then
+                text_len_stream <= 128;
+              else
+                text_len_stream <= text_len_axi_lite;
+              end if;
             end if;
 
             if start_latched = '1' then
-                input_ready_stream <= '0';
-                s00_axis_tready    <= '1';
-                start_latched <= '0';
-                stream_slave_state <= Ready;
+              input_ready_stream <= '0';
+              s00_axis_tready    <= '1';
+              start_latched      <= '0';
+              stream_slave_state <= Ready;
             end if;
 
             if core_initialized = '1' then
-              
+
               if start_core_axi_lite = '1' and stream_slave_counter = 0 then
                 input_ready_stream <= '0';
                 s00_axis_tready    <= '1';
@@ -283,6 +289,10 @@ begin
               out_buffer_fill     <= '1';
               stream_master_state <= Valid;
 
+              -- Make the data appear on the same clock cycle as ready this word would be text_out_holder(0)
+              m00_axis_tdata        <= text_out_stream(95 downto 64);
+              stream_master_counter <= stream_master_counter + 1;
+
               text_out_holder(3) <= text_out_stream(63 downto 32);
               text_out_holder(2) <= text_out_stream(31 downto 0);
               text_out_holder(1) <= text_out_stream(127 downto 96);
@@ -292,6 +302,10 @@ begin
             if finished_axi_lite = '1' and stream_master_counter = 0 then
               m00_axis_tvalid     <= '1';
               stream_master_state <= Valid_tag;
+
+              -- Make the data appear on the same clock cycle as ready this word would be tag_holder(0)
+              m00_axis_tdata        <= tag_axi_lite(95 downto 64);
+              stream_master_counter <= stream_master_counter + 1;
 
               tag_holder(3) <= tag_axi_lite(63 downto 32);
               tag_holder(2) <= tag_axi_lite(31 downto 0);
@@ -309,7 +323,6 @@ begin
                 stream_master_state   <= Idle;
                 out_buffer_fill       <= '0';
                 stream_master_counter <= 0;
-                m00_axis_tvalid       <= '0';
               end if;
             end if;
           when Valid_tag =>
@@ -318,14 +331,11 @@ begin
               m00_axis_tdata        <= tag_holder(stream_master_counter);
               stream_master_counter <= stream_master_counter + 1;
 
-              if stream_master_counter = 2 then
-                m00_axis_tlast <= '1';
-              end if;
               if stream_master_counter = 3 then
                 stream_master_state   <= Idle;
                 out_buffer_fill       <= '0';
                 stream_master_counter <= 0;
-                m00_axis_tvalid       <= '0';
+                m00_axis_tlast        <= '1';
               end if;
             end if;
           when others => null;
@@ -359,7 +369,7 @@ begin
         text_i                      => text_in_stream,
         text_o                      => text_out_stream,
         tag_o                       => tag_axi_lite,
-        text_len_i                  => text_len_axi_lite,
+        text_len_i                  => text_len_stream,
         stall_i                     => out_buffer_fill,
         core_initialized_o          => core_initialized
       );

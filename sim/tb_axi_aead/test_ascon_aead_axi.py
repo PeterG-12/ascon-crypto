@@ -251,6 +251,10 @@ async def generate_input_stream(
         control.text_word_left = 0
 
 
+
+    await driver.write_32(ADDR_TEXT_LEN, p_last_word_len)
+
+
     control.start = 1
     control.input_ready = 1
     control.finish_rdy_en = 1
@@ -265,15 +269,13 @@ async def generate_input_stream(
     await write_control_register(driver, control)
 
     await driver.write_stream(assoc_data_list)
-
     
-
     await driver.write_stream(text_list)
 
     logger.warning(f"starting read {get_sim_time(unit="ns")}")
     read_data : bytearray = await driver.read_stream()
-    logger.warning(f"{read_data.hex()}")
-    
+    logger.warning(f"OUTPUT {read_data.hex()[0:len(text_list)*2*16 - (32 - p_last_word_len//4)]}    tag: {read_data.hex()[-32:]}")
+    outp = read_data.hex()[0:len(text_list)*2*16 - (32 - p_last_word_len//4)]
 
 
         
@@ -314,6 +316,7 @@ async def test_for_hex(
     while finished != 1:
         await RisingEdge(dut.s00_axi_aclk)
         finished, text_ready, word_processed = await read_status_register(driver)
+    
     correct_result = ciphertext.lower()
 
     tag_bytes = await driver.read_128(ADDR_TAG_OUT)
@@ -369,8 +372,8 @@ async def test_for_hex(
 
 
     logger.debug(f"Finished with: {output} :  {tag_bytes.hex()}")
-    assert tag_bytes.hex() == correct_tag, "Incorrect tag!"
     assert output == pt, "Incorrect plaintext"
+    assert tag_bytes.hex() == correct_tag, "Incorrect tag!"
 
     return
 
@@ -418,7 +421,7 @@ async def test_ascon_aead_stream(dut : copra_stubs.Asconaead128Hybrid):
 
 
         count += 1
-        if count != 1000:
+        if count != 1007:
             continue
         obj = input_data
         key = obj.key
