@@ -252,7 +252,6 @@ begin
                                 core_rounds <= 8;
                             else
                                 core_in(191 downto 64) <= core_out_latched(191 downto 64) xor key;
-                                
                                 core_rounds <= 12;
                                 curr_state <= finalization;
 

@@ -274,6 +274,7 @@ async def generate_input_stream(
 
     logger.warning(f"starting read {get_sim_time(unit="ns")}")
     read_data : bytearray = await driver.read_stream()
+    logger.warning(f"OUTPUT {read_data.hex()}")
     logger.warning(f"OUTPUT {read_data.hex()[0:len(text_list)*2*16 - (32 - p_last_word_len//4)]}    tag: {read_data.hex()[-32:]}")
     outp = read_data.hex()[0:len(text_list)*2*16 - (32 - p_last_word_len//4)]
 
