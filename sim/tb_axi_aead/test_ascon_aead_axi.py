@@ -249,10 +249,16 @@ async def generate_input_stream(
     if count_text <= 1:
         plen = p_last_word_len
         control.text_word_left = 0
+        await driver.write_32(ADDR_TXT_COUNT, 1)
+    else:
+        await driver.write_32(ADDR_TXT_COUNT, count_text)
+
+
 
 
 
     await driver.write_32(ADDR_TEXT_LEN, p_last_word_len)
+    await driver.write_32(ADDR_AD_COUNT, count_assoc_data)
 
 
     control.start = 1
@@ -274,7 +280,7 @@ async def generate_input_stream(
     if count_assoc_data > 0:
         logger.warning(f"starting write ad {get_sim_time(unit="ns")}")
         await driver.write_stream(assoc_data_list)
-    if count_text > 0:
+    if count_text >= 0:
         logger.warning(f"starting write txt {get_sim_time(unit="ns")}")
         await driver.write_stream(text_list)
 
@@ -396,7 +402,7 @@ else:
     unit = "us" 
 
 
-@cocotb.test(timeout_time=8000, timeout_unit=unit)
+@cocotb.test(timeout_time=8000, timeout_unit="ns")
 async def test_ascon_aead_stream(dut : copra_stubs.Asconaead128Hybrid):
     logging.getLogger("cocotb.asconaead128_hybrid.s00_axi").setLevel(logging.WARNING)
     logging.getLogger("cocotb.asconaead128_hybrid.s00_axis").setLevel(logging.WARNING)
@@ -440,10 +446,9 @@ async def test_ascon_aead_stream(dut : copra_stubs.Asconaead128Hybrid):
 
         count += 1
         
-        if DEBUG:
-            if count != 17:
-                continue
-        
+        if count != 1: 
+            continue
+            
         obj = input_data
         key = obj.key
         nonce = obj.nonce

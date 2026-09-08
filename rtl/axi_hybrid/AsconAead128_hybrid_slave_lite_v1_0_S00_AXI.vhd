@@ -90,8 +90,8 @@ entity AsconAead128_hybrid_slave_lite_v1_0_S00_AXI is
     status_register_axi_lite  : out std_logic_vector(31 downto 0);
     control_register_axi_lite : out std_logic_vector(31 downto 0);
     text_len_axi_lite         : out natural range 0 to 128;
-    associated_data_count     : out natural range 0 to 128;
-    text_count                : out natural range 0 to 128;
+    associated_data_count     : out unsigned(31 downto 0);
+    text_count                : out unsigned(31 downto 0);
     start_core_axi_lite       : in std_logic;
 
     finished_axi_lite       : in std_logic;
@@ -660,8 +660,8 @@ begin
   associated_data_axi_lite <= slv_reg11 & slv_reg10 & slv_reg13 & slv_reg12;
   text_in_axi_lite         <= slv_reg15 & slv_reg14 & slv_reg17 & slv_reg16;
   text_len_axi_lite        <= to_integer(unsigned(slv_reg18));
-  text_len_axi_lite        <= to_integer(unsigned(slv_reg27));
-  text_len_axi_lite        <= to_integer(unsigned(slv_reg28));
+  associated_data_count    <= unsigned(slv_reg27);
+  text_count               <= unsigned(slv_reg28);
 
   -- Handle latching and clearing 1-cycle signals
   process (S_AXI_ACLK)
