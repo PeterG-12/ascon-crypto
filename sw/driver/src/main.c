@@ -92,8 +92,8 @@ int main() {
                       0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
                       0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F};
 
-    size_t plaintext_byte_len = 32;
-    size_t associated_data_byte_len = 32;
+    size_t plaintext_byte_len = 15;
+    size_t associated_data_byte_len = 4;
 
     // Main menu
     for (;;) {
@@ -218,7 +218,7 @@ void do_encryption_decryption(uint8_t pt[32], uint8_t ad[32],
     after = neorv32_cpu_get_cycle();
     neorv32_uart0_printf("Decryption took: %d cycles\n", after - before);
 
-    if (do_print) {
+    if (do_print && plaintext != NULL) {
         neorv32_uart0_printf("Plaintext after processing: \n");
         print_crypto_array(plaintext);
         neorv32_uart0_printf("\n");

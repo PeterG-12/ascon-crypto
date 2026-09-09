@@ -133,3 +133,11 @@ static inline void clear_word_rdy_interrupt() {
 static inline void clear_finished_rdy_interrupt() {
     write_32(A128_ADDR_STATUS, 1 << 4);
 }
+
+static inline void provide_associated_data_count(const uint32_t count){
+    write_32(A128_ADDR_ASSOCIATED_DATA_COUNT, count);
+}
+
+static inline void provide_text_count(const uint32_t count){
+    write_32(A128_ADDR_TEXT_COUNT, count);
+}

@@ -126,6 +126,7 @@ class AxiAsconDriver:
                 chunk = crypto_word[i * 4 : (i+1) * 4]
                 word = int.from_bytes(chunk, byteorder="little")
                 val = word.to_bytes(4, byteorder="little")
+                print(f"Sending #: {val.hex()}")
                 write_queue.append(val)
         await self.axis_source.write(b"".join(write_queue))
         await self.axis_source.wait()

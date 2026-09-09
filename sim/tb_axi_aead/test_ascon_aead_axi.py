@@ -191,103 +191,6 @@ async def generate_input(
             break
 
 
-
-async def generate_input_stream(
-    dut: copra_stubs.Asconaead128,
-    key,
-    nonce,
-    pt,
-    ad,
-    driver: AxiAsconDriver,
-    encrypt_mode,
-):
-    plen = 0
-    global outp
-    logger = cocotb.log
-    logger.setLevel(logging.INFO)
-
-    logger.debug("Started generate input")
-
-    logger.debug("Key: " + key)
-    logger.debug("Nonce: " + nonce)
-    logger.debug("Pt: " + pt)
-    logger.debug("Ad: " + ad)
-
-    i_associated_data = 0
-    i_text = 0
-
-    key = bytes.fromhex(key)
-    nonce = bytes.fromhex(nonce)
-
-    await driver.write_128(ADDR_KEY, key)
-    await driver.write_128(ADDR_NONCE, nonce)
-
-    text_list, assoc_data_list, count_text, count_assoc_data, p_last_word_len = (
-        input_lists(ad, pt)
-    )
-
-    control = ControlSignals()
-
-    control.text_word_left = 1
-    control.encrypt_mode = encrypt_mode
-
-    await write_control_register(driver, control)
-    logger.debug("Control register written")
-
-    plen = 128
-
-    logger.debug(f"Associated data: {assoc_data_list}")
-    logger.debug(f"Associated len: {count_assoc_data}")
-    logger.debug(f"Plaintext data: {text_list}")
-    logger.debug(f"Plaintext len: {count_text}")
-
-    if count_assoc_data == 0:
-        control.associated_data_word_left = 0
-    else:
-        control.associated_data_word_left = 1
-
-    if count_text <= 1:
-        plen = p_last_word_len
-        control.text_word_left = 0
-
-    await driver.write_32(ADDR_TEXT_LEN, p_last_word_len)
-    await driver.write_32(ADDR_AD_COUNT, count_assoc_data)
-    await driver.write_32(ADDR_TXT_COUNT, count_text)
-
-
-
-    control.start = 1
-    control.input_ready = 1
-    control.finish_rdy_en = 1
-    control.word_rdy_en = 1
-    await write_control_register(driver, control)
-    control.input_ready = 0
-
-    finished = 0
-    finished, text_ready, word_processed = await read_status_register(driver)
-
-    control.start = 0
-    await write_control_register(driver, control)
-
-    #logger.warning(f"State {control.associated_data_word_left}  {control.text_word_left}")
-
-
-    if count_assoc_data > 0:
-        #logger.warning(f"starting write ad {get_sim_time(unit="ns")}")
-        await driver.write_stream(assoc_data_list)
-    if count_text >= 0:
-        #logger.warning(f"starting write txt {get_sim_time(unit="ns")}")
-        await driver.write_stream(text_list)
-
-    #logger.warning(f"starting read {get_sim_time(unit="ns")}")
-    read_data : bytearray = await driver.read_stream()
-    #logger.warning(f"OUTPUT {read_data.hex()}")
-    #logger.warning(f"OUTPUT {read_data.hex()[0:len(text_list)*2*16 - (32 - p_last_word_len//4)]}    tag: {read_data.hex()[-32:]}")
-    outp = read_data.hex()[0:len(text_list)*2*16 - (32 - p_last_word_len//4)]
-
-
-        
-
 async def generate_clock(dut):
     c = Clock(dut.s00_axi_aclk, 10, unit="ns")
     c.start()
@@ -302,8 +205,7 @@ async def generate_clock_stream(dut):
 
 
 async def test_for_hex(
-    dut: copra_stubs.Asconaead128, key, nonce, pt, ad, ciphertext, driver, use_stream = False
-):
+    dut: copra_stubs.Asconaead128, key, nonce, pt, ad, ciphertext, driver):
     global outp
     outp = ""
     logger = cocotb.log
@@ -314,10 +216,7 @@ async def test_for_hex(
 
     encrypt_mode = 1
 
-    if use_stream:
-        await generate_input_stream(dut, key, nonce, pt, ad, driver, 1)
-    else:
-        await generate_input(dut, key, nonce, pt, ad, driver, 1)
+    await generate_input(dut, key, nonce, pt, ad, driver, 1)
 
     finished, text_ready, word_processed = await read_status_register(driver)
 
@@ -356,10 +255,7 @@ async def test_for_hex(
 
     logger.debug(f"Text {ciphertext}   {text}")
 
-    if use_stream:
-        await generate_input_stream(dut, key, nonce, text, ad, driver, 0)
-    else:
-        await generate_input(dut, key, nonce, text, ad, driver, 0)
+    await generate_input(dut, key, nonce, text, ad, driver, 0)
     
 
     finished, text_ready, word_processed = await read_status_register(driver)
