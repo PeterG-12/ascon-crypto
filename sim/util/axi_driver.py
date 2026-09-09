@@ -2,6 +2,23 @@
 from util.parseandpad import parse, pad
 from cocotbext.axi import AxiLiteBus, AxiLiteMaster
 from cocotbext.axi import AxiStreamBus, AxiStreamSource, AxiStreamSink, AxiStreamMonitor, AxiStreamFrame
+from cocotb.triggers import Timer
+from random import randint
+
+def random_chunk_sizes(lst, min, max):
+    chunks = []
+    i = 0
+    length = len(lst)
+    
+    while i < length:
+        chunk_size = randint(min, max)
+        chunks.append(lst[i:i + chunk_size])
+        i += chunk_size
+        
+    return chunks
+
+
+
 # Base address of the Axi periphreal used in Vivado
 # Needed for configuring the logs correctly
 FPGA_MMAP_BASE = 0x44A0_0000
@@ -126,10 +143,16 @@ class AxiAsconDriver:
                 chunk = crypto_word[i * 4 : (i+1) * 4]
                 word = int.from_bytes(chunk, byteorder="little")
                 val = word.to_bytes(4, byteorder="little")
-                print(f"Sending #: {val.hex()}")
                 write_queue.append(val)
-        await self.axis_source.write(b"".join(write_queue))
+
+
+        chunks = random_chunk_sizes(write_queue, 1, 8)
+        for chunk in chunks:
+            await self.axis_source.write(b"".join(chunk))
+            await Timer(randint(300, 5000), unit="ns")
+
         await self.axis_source.wait()
+
 
     async def read_stream(self) -> bytearray:
         res = await self.axis_sink.recv()
@@ -137,13 +160,10 @@ class AxiAsconDriver:
 
     async def write_32_stream(self, val):
         to_send = val.to_bytes(4, byteorder="little")
-        print(f"Sending: {to_send}")
         await self.axis_source.send(to_send)
 
     async def read_32_stream(self) -> int:
-        print("READIN' 2...")
         res = await self.axis_sink.recv()
-        print(f"RECEIVED'... {res.tdata}")
         val = int.from_bytes(res.tdata, byteorder="little")
         return val
 
@@ -154,7 +174,6 @@ class AxiAsconDriver:
             await self.write_32_stream(word)
 
     async def read_128_stream(self) -> bytes:
-        print("READIN' 1...")
         res = bytearray()
         for _ in range(4):
             word = await self.read_32_stream()

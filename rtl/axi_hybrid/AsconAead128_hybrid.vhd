@@ -49,18 +49,18 @@ entity AsconAead128_hybrid is
     s00_axi_rready  : in std_logic;
 
     -- Ports of Axi Slave Bus Interface S00_AXIS
-    s00_axis_tready  : out std_logic;
-    s00_axis_tdata   : in std_logic_vector(C_S00_AXIS_TDATA_WIDTH - 1 downto 0);
-    s00_axis_tstrb   : in std_logic_vector((C_S00_AXIS_TDATA_WIDTH/8) - 1 downto 0);
-    s00_axis_tlast   : in std_logic;
-    s00_axis_tvalid  : in std_logic;
+    s00_axis_tready : out std_logic;
+    s00_axis_tdata  : in std_logic_vector(C_S00_AXIS_TDATA_WIDTH - 1 downto 0);
+    s00_axis_tstrb  : in std_logic_vector((C_S00_AXIS_TDATA_WIDTH/8) - 1 downto 0);
+    s00_axis_tlast  : in std_logic;
+    s00_axis_tvalid : in std_logic;
 
     -- Ports of Axi Master Bus Interface M00_AXIS
-    m00_axis_tvalid  : out std_logic;
-    m00_axis_tdata   : out std_logic_vector(C_M00_AXIS_TDATA_WIDTH - 1 downto 0);
-    m00_axis_tstrb   : out std_logic_vector((C_M00_AXIS_TDATA_WIDTH/8) - 1 downto 0);
-    m00_axis_tlast   : out std_logic;
-    m00_axis_tready  : in std_logic;
+    m00_axis_tvalid : out std_logic;
+    m00_axis_tdata  : out std_logic_vector(C_M00_AXIS_TDATA_WIDTH - 1 downto 0);
+    m00_axis_tstrb  : out std_logic_vector((C_M00_AXIS_TDATA_WIDTH/8) - 1 downto 0);
+    m00_axis_tlast  : out std_logic;
+    m00_axis_tready : in std_logic;
 
     module_interrupt_o : out std_logic
   );
@@ -121,7 +121,6 @@ architecture arch_imp of AsconAead128_hybrid is
   signal text_left_stream            : std_logic              := '0';
   signal text_len_stream             : natural range 0 to 128 := 0;
   signal start_latched               : std_logic              := '0';
-  signal last_latched                : std_logic              := '0';
 
   signal asscociated_data_state : natural range 0 to 2 := 0;
   -- User signals end
@@ -188,7 +187,6 @@ begin
         stream_slave_counter  <= 0;
         start_prev            <= '0';
         start_latched         <= '0';
-        last_latched          <= '0';
         associated_data_index <= (others => '0');
         text_count_index      <= (others => '0');
         total_read            <= (others => '0');
@@ -196,8 +194,26 @@ begin
       else
         start_prev <= control_register_axi_lite(0);
 
-        if s00_axis_tlast = '1' then
-          last_latched <= '1';
+
+        if word_processed_axi_lite = '1' and core_initialized = '1' then
+          if (associated_data_count_axi_lite > 0) and (associated_data_index < associated_data_count_axi_lite) then
+            text_left_stream            <= '1';
+            associated_data_left_stream <= '1';
+            associated_data_index       <= associated_data_index + 1;
+          elsif (text_count_index < text_count_axi_lite) then
+            if text_count_index = (text_count_axi_lite - 1) then
+              text_len_stream  <= text_len_axi_lite;
+              text_left_stream <= '0';
+            else
+              text_left_stream <= '1';
+            end if;
+            associated_data_left_stream <= '0';
+
+            text_count_index <= text_count_index + 1;
+          else
+            text_left_stream            <= '0';
+            associated_data_left_stream <= '0';
+          end if;
         end if;
 
         case stream_slave_state is
@@ -242,27 +258,6 @@ begin
                   input_ready_stream <= '0';
                   s00_axis_tready    <= '1';
                   stream_slave_state <= Ready;
-                end if;
-              end if;
-
-              if word_processed_axi_lite = '1' then
-                if (associated_data_count_axi_lite > 0) and (associated_data_index < associated_data_count_axi_lite) then
-                  text_left_stream            <= '1';
-                  associated_data_left_stream <= '1';
-                  associated_data_index       <= associated_data_index + 1;
-                elsif (text_count_index < text_count_axi_lite) then
-                  if text_count_index = (text_count_axi_lite - 1) then
-                    text_len_stream  <= text_len_axi_lite;
-                    text_left_stream <= '0';
-                  else
-                    text_left_stream <= '1';
-                  end if;
-                  associated_data_left_stream <= '0';
-
-                  text_count_index <= text_count_index + 1;
-                else
-                  text_left_stream            <= '0';
-                  associated_data_left_stream <= '0';
                 end if;
               end if;
             end if;

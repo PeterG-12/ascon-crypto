@@ -37,7 +37,7 @@ async def generate_input(
     plen = 0
     global outp
     logger = cocotb.log
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
 
     logger.debug("Started generate input")
 
@@ -82,23 +82,16 @@ async def generate_input(
     control.start = 0
     await write_control_register(driver, control)
 
-    #logger.warning(f"State {control.associated_data_word_left}  {control.text_word_left}")
-    await Timer(10000, unit="ns")
-
     if count_assoc_data > 0:
-        #logger.warning(f"starting write ad {get_sim_time(unit="ns")}")
         await driver.write_stream(assoc_data_list)
-    await Timer(700, unit="ns")
+    await Timer(7000, unit="ns")
     if count_text >= 0:
-        #logger.warning(f"starting write txt {get_sim_time(unit="ns")}")
         await driver.write_stream(text_list)
 
     logger.debug("Writes ended")
 
-    #logger.warning(f"starting read {get_sim_time(unit="ns")}")
     read_data : bytearray = await driver.read_stream()
-    #logger.warning(f"OUTPUT {read_data.hex()}")
-    #logger.warning(f"OUTPUT {read_data.hex()[0:len(text_list)*2*16 - (32 - p_last_word_len//4)]}    tag: {read_data.hex()[-32:]}")
+    logger.debug(f"Read data: {read_data.hex()[0:len(text_list)*2*16 - (32 - p_last_word_len//4)]}    tag: {read_data.hex()[-32:]}")
     outp = read_data.hex()[0:len(text_list)*2*16 - (32 - p_last_word_len//4)]
 
 
@@ -208,7 +201,7 @@ else:
     unit = "us" 
 
 
-@cocotb.test(timeout_time=8000, timeout_unit="us")
+@cocotb.test(timeout_time=30000, timeout_unit="us")
 async def test_ascon_aead_stream(dut : copra_stubs.Asconaead128Hybrid):
     logging.getLogger("cocotb.asconaead128_hybrid.s00_axi").setLevel(logging.WARNING)
     logging.getLogger("cocotb.asconaead128_hybrid.s00_axis").setLevel(logging.WARNING)
@@ -245,7 +238,7 @@ async def test_ascon_aead_stream(dut : copra_stubs.Asconaead128Hybrid):
     count = 0
     TESTS_TO_RUN = -1  # -1 to perform all tests
 
-    """
+    KAT_dictionary = {}
     for i in range(20):
         key = get_random_bytes(16)
         nonce = get_random_bytes(16)
@@ -258,15 +251,12 @@ async def test_ascon_aead_stream(dut : copra_stubs.Asconaead128Hybrid):
         obj = AeadEncrypt(key.hex(), nonce.hex(), pt.hex(), ad.hex())
         KAT_dictionary[obj] = ciphertext.hex()
     
-    """
+    
 
     for input_data in KAT_dictionary.keys():
 
 
         count += 1
-        if count != 1:
-            continue
-
         obj = input_data
         key = obj.key
         nonce = obj.nonce
@@ -277,7 +267,7 @@ async def test_ascon_aead_stream(dut : copra_stubs.Asconaead128Hybrid):
 
 
         ciphertext = KAT_dictionary[input_data]
-        logger.warning(f"CT = {ciphertext}")
+        #logger.warning(f"CT = {ciphertext}")
 
         await test_for_hex(dut, key, nonce, pt, ad, ciphertext, driver)
 

@@ -100,10 +100,6 @@ crypto_array_t *aead_process_stream(const crypto_array_t *associated_data,
         tag->blocks[0].w[j] = read_word_stream();
     }
 
-    for (int j = 0; j < 4; j++) {
-        tag->blocks[0].w[j] = read_word_stream();
-    }
-
     return text_out_buffer;
 }
 
