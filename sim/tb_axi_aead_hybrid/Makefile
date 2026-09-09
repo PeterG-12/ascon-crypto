@@ -10,12 +10,12 @@ EXTRA_ARGS += -Wno-hide
 
 #Stub generation
 # Python test module name (Runs Copra first, then your test)
-COCOTB_TEST_MODULES = copra.integration.autostub,test_ascon_aead_axi
+COCOTB_TEST_MODULES = copra.integration.autostub,test_ascon_aead_hybrid
 
 VHDL_SOURCES += $(wildcard ../../rtl/*.vhd)
 VHDL_SOURCES += $(wildcard ../../rtl/axi/*.vhd)
 VHDL_SOURCES += $(wildcard ../../rtl/axi_hybrid/*.vhd)
-TOPLEVEL = asconaead128
+TOPLEVEL = asconaead128_hybrid
 
 #VHDL_SOURCES += $(PWD)/vhdl/*.vhd
 # Top-level entity name

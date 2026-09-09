@@ -22,6 +22,10 @@ proc create_ipi_design { offsetfile design_name } {
 	# Create port connections
 	connect_bd_net -net aclk_net [get_bd_ports ACLK] [get_bd_pins master_0/ACLK] [get_bd_pins AsconAead128_hybrid_0/S00_AXI_ACLK]
 	connect_bd_net -net aresetn_net [get_bd_ports ARESETN] [get_bd_pins master_0/ARESETN] [get_bd_pins AsconAead128_hybrid_0/S00_AXI_ARESETN]
+	make_bd_intf_pins_external  [get_bd_intf_pins AsconAead128_hybrid_0/M00_AXIS]
+	# Create port connections
+	connect_bd_net -net aclk_net [get_bd_ports ACLK] [get_bd_pins AsconAead128_hybrid_0/M00_AXIS_ACLK]
+	connect_bd_net -net aresetn_net [get_bd_ports ARESETN] [get_bd_pins AsconAead128_hybrid_0/M00_AXIS_ARESETN]
 	make_bd_intf_pins_external  [get_bd_intf_pins AsconAead128_hybrid_0/S00_AXIS]
 	# Create port connections
 	connect_bd_net -net aclk_net [get_bd_ports ACLK] [get_bd_pins AsconAead128_hybrid_0/S00_AXIS_ACLK]

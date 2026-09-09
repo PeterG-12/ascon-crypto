@@ -25,8 +25,9 @@ entity AsconAead128_hybrid is
     -- User ports ends
     -- Do not modify the ports beyond this line
     -- Ports of Axi Slave Bus Interface S00_AXI
-    s00_axi_aclk    : in std_logic;
-    s00_axi_aresetn : in std_logic;
+    aclk    : in std_logic;
+    aresetn : in std_logic;
+
     s00_axi_awaddr  : in std_logic_vector(C_S00_AXI_ADDR_WIDTH - 1 downto 0);
     s00_axi_awprot  : in std_logic_vector(2 downto 0);
     s00_axi_awvalid : in std_logic;
@@ -48,8 +49,6 @@ entity AsconAead128_hybrid is
     s00_axi_rready  : in std_logic;
 
     -- Ports of Axi Slave Bus Interface S00_AXIS
-    s00_axis_aclk    : in std_logic;
-    s00_axis_aresetn : in std_logic;
     s00_axis_tready  : out std_logic;
     s00_axis_tdata   : in std_logic_vector(C_S00_AXIS_TDATA_WIDTH - 1 downto 0);
     s00_axis_tstrb   : in std_logic_vector((C_S00_AXIS_TDATA_WIDTH/8) - 1 downto 0);
@@ -57,8 +56,6 @@ entity AsconAead128_hybrid is
     s00_axis_tvalid  : in std_logic;
 
     -- Ports of Axi Master Bus Interface M00_AXIS
-    m00_axis_aclk    : in std_logic;
-    m00_axis_aresetn : in std_logic;
     m00_axis_tvalid  : out std_logic;
     m00_axis_tdata   : out std_logic_vector(C_M00_AXIS_TDATA_WIDTH - 1 downto 0);
     m00_axis_tstrb   : out std_logic_vector((C_M00_AXIS_TDATA_WIDTH/8) - 1 downto 0);
@@ -133,13 +130,14 @@ begin
 
   AsconAead128_hybrid_slave_lite_v1_0_S00_AXI_inst : entity work.AsconAead128_hybrid_slave_lite_v1_0_S00_AXI
     generic map(
+      USE_STREAM         => USE_STREAM,
       C_S_AXI_DATA_WIDTH => C_S00_AXI_DATA_WIDTH,
       C_S_AXI_ADDR_WIDTH => C_S00_AXI_ADDR_WIDTH
     )
     port map
     (
-      S_AXI_ACLK    => s00_axi_aclk,
-      S_AXI_ARESETN => s00_axi_aresetn,
+      S_AXI_ACLK    => aclk,
+      S_AXI_ARESETN => aresetn,
       S_AXI_AWADDR  => s00_axi_awaddr,
       S_AXI_AWPROT  => s00_axi_awprot,
       S_AXI_AWVALID => s00_axi_awvalid,
@@ -182,10 +180,10 @@ begin
 
   text_in_stream <= text_in_holder(1) & text_in_holder(0) & text_in_holder(3) & text_in_holder(2);
 
-  axi_stream_slave : process (s00_axis_aclk)
+  axi_stream_slave : process (aclk)
   begin
-    if rising_edge(s00_axi_aclk) then
-      if s00_axis_aresetn = '0' then
+    if rising_edge(aclk) then
+      if aresetn = '0' then
         s00_axis_tready       <= '0';
         stream_slave_counter  <= 0;
         start_prev            <= '0';
@@ -210,7 +208,7 @@ begin
               associated_data_index <= (others => '0');
               text_count_index      <= (others => '0');
               total_read            <= (others => '0');
-                
+
               if to_integer(associated_data_count_axi_lite) = 0 then
                 associated_data_left_stream <= '0';
                 text_count_index            <= to_unsigned(1, 32);
@@ -220,8 +218,11 @@ begin
               end if;
 
               if to_integer(text_count_axi_lite) <= 1 then
-                text_left_stream                   <= '1';
+                text_left_stream                   <= '0';
                 text_len_stream                    <= text_len_axi_lite;
+              else
+                text_len_stream  <= 128;
+                text_left_stream <= '1';
               end if;
 
               start_latched      <= '1';
@@ -237,7 +238,7 @@ begin
 
             if core_initialized = '1' then
               if start_core_axi_lite = '1' and stream_slave_counter = 0 then
-                if total_read < (associated_data_count_axi_lite + text_count_axi_lite) then
+                if total_read < (associated_data_count_axi_lite + text_count_axi_lite) or (text_count_index = 0 and total_read = associated_data_count_axi_lite) then
                   input_ready_stream <= '0';
                   s00_axis_tready    <= '1';
                   stream_slave_state <= Ready;
@@ -287,10 +288,10 @@ begin
     end if;
   end process;
 
-  axi_stream_master : process (m00_axis_aclk)
+  axi_stream_master : process (aclk)
   begin
-    if rising_edge(m00_axis_aclk) then
-      if m00_axis_aresetn = '0' then
+    if rising_edge(aclk) then
+      if aresetn = '0' then
         stream_master_counter <= 0;
         m00_axis_tdata        <= (others => '0');
         word_processed_prev   <= '0';
@@ -363,14 +364,14 @@ begin
   end process;
 
   -- Add user logic here
-  reset_active_high <= not s00_axi_aresetn;
+  reset_active_high <= not aresetn;
 
   stream_core : if USE_STREAM = true generate
   begin
     ascon_aead_inst : entity work.ascon_aead
       port map
       (
-        clk_i                       => s00_axi_aclk,
+        clk_i                       => aclk,
         reset_i                     => reset_active_high,
         start_i                     => control_register_axi_lite(0),
         associated_data_word_left_i => associated_data_left_stream,
@@ -398,7 +399,7 @@ begin
     ascon_aead_inst : entity work.ascon_aead
       port map
       (
-        clk_i                       => s00_axi_aclk,
+        clk_i                       => aclk,
         reset_i                     => reset_active_high,
         start_i                     => control_register_axi_lite(0),
         associated_data_word_left_i => control_register_axi_lite(1),

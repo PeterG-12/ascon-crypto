@@ -159,6 +159,7 @@ architecture arch_imp of AsconAead128_slave_lite_v1_0_S00_AXI is
   signal latched_text_o   : std_logic_vector(127 downto 0) := (others => '0');
   signal latched_tag_o    : std_logic_vector(127 downto 0) := (others => '0');
   signal latched_finished : std_logic                      := '0';
+  signal core_initialized : std_logic                      := '0';
 
   signal latched_text_ready     : std_logic := '0';
   signal latched_word_processed : std_logic := '0';
@@ -654,7 +655,9 @@ begin
       text_i                      => text_i,
       text_len_i                  => text_len_i,
       text_o                      => text_o,
-      tag_o                       => tag_o
+      tag_o                       => tag_o,
+      stall_i                     => '0',
+      core_initialized_o          => core_initialized
     );
 
   -- Handle latching and clearing 1-cycle signals

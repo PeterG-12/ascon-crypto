@@ -57,6 +57,8 @@ proc create_ipi_design { offsetfile design_name } {
 	# Connect all clock & reset of AsconAead128_hybrid_0 streaming interfaces..
 	connect_bd_net [get_bd_pins AsconAead128_hybrid_0/s00_axis_aclk] [get_bd_pins sys_clk_0/clk_out1]
 	connect_bd_net [get_bd_pins AsconAead128_hybrid_0/s00_axis_aresetn] [get_bd_pins sys_reset_0/peripheral_aresetn]
+	connect_bd_net [get_bd_pins AsconAead128_hybrid_0/m00_axis_aclk] [get_bd_pins sys_clk_0/clk_out1]
+	connect_bd_net [get_bd_pins AsconAead128_hybrid_0/m00_axis_aresetn] [get_bd_pins sys_reset_0/peripheral_aresetn]
 
 
 	# Auto assign address

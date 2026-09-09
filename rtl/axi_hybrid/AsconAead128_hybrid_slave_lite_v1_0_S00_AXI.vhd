@@ -5,7 +5,7 @@ use ieee.numeric_std.all;
 entity AsconAead128_hybrid_slave_lite_v1_0_S00_AXI is
   generic (
     -- Users to add parameters here
-
+    USE_STREAM : boolean := true;
     -- User parameters ends
     -- Do not modify the parameters beyond this line
 
@@ -731,12 +731,14 @@ begin
     end if;
   end process;
 
-  status_register_internal (0)           <= latched_finished or finished_axi_lite;
-  status_register_internal (1)           <= latched_text_ready or text_ready_axi_lite;
-  status_register_internal (2)           <= latched_word_processed or word_processed_axi_lite;
-  status_register_internal (3)           <= latched_word_rdy_int;
-  status_register_internal (4)           <= latched_finished_rdy_int;
-  status_register_internal (31 downto 5) <= (others => '0');
+  status_register_internal (0) <= latched_finished or finished_axi_lite;
+  status_register_internal (1) <= latched_text_ready or text_ready_axi_lite;
+  status_register_internal (2) <= latched_word_processed or word_processed_axi_lite;
+  status_register_internal (3) <= latched_word_rdy_int;
+  status_register_internal (4) <= latched_finished_rdy_int;
+  status_register_internal (5) <= '1' when USE_STREAM else
+  '0';
+  status_register_internal (31 downto 6) <= (others => '0');
 
   status_register_axi_lite <= status_register_internal;
 
