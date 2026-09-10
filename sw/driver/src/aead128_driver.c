@@ -3,13 +3,12 @@
 #include "aead128_helper.h"
 #include "aead128_slink.h"
 #include "aead128_types.h"
-#include "neorv32_uart.h"
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/unistd.h>
 
 static volatile uint8_t interrupt_fired;
+static volatile uint32_t rx_fifo_depth;
 
 void machine_interrupt_handler(void) {
     uint32_t stat = READ_STAT();
@@ -24,13 +23,15 @@ void machine_interrupt_handler(void) {
     }
 }
 
+
 crypto_array_t *aead_process_stream(const crypto_array_t *associated_data,
                                     const crypto_array_t *text_in,
                                     crypto_array_t *tag,
                                     crypto_array_t *text_out_buffer,
-                                    uint8_t encrypt_mode) {
+                                    uint8_t encrypt_mode, uint32_t rx_fifo_size,
+                                    uint32_t tx_fifo_size) {
     interrupt_fired = 0;
-
+    rx_fifo_depth = rx_fifo_size;
     uint32_t control = 0;
 
     if (encrypt_mode)
@@ -51,13 +52,6 @@ crypto_array_t *aead_process_stream(const crypto_array_t *associated_data,
     provide_text_count(text_in_count);
     write_text_len(last_text_word_len);
 
-    if (setup_stream() == -1) {
-        print_error("Failed to initalize streaming interface\n");
-    }
-
-
-
-
     while (!rx_empty()) {
         read_word_stream();
     }
@@ -67,36 +61,36 @@ crypto_array_t *aead_process_stream(const crypto_array_t *associated_data,
     CLR_CTRL(control, CTRL_START);
     COMMIT_CTRL(control);
 
-    
+    if (!text_in_count) {
+        text_in_count = 1;
+    }
+
 
     for (int i = 0; i < associated_data_count; i++) {
-        for (int j = 0; j < 4; j++) {
+        for(int j = 0; j < 4; j++){
+            while (tx_full()){}
             write_word_stream(associated_data->blocks[i].w[j]);
         }
     }
 
-    if(!text_in_count){
-        text_in_count = 1;
-    }
 
     for (int i = 0; i < text_in_count; i++) {
-        for (int j = 0; j < 4; j++) {
+        for(int j = 0; j < 4; j++){
+            while (tx_full()){}
             write_word_stream(text_in->blocks[i].w[j]);
         }
     }
 
 
-
     for (int i = 0; i < text_in_count; i++) {
-        for (int j = 0; j < 4; j++) {
-            while (rx_empty()) {
-                neorv32_uart0_printf("Empty\n");
-            }
+        for(int j = 0; j < 4; j++){
+            while (rx_empty()){}
             text_out_buffer->blocks[i].w[j] = read_word_stream();
         }
     }
-
+    
     for (int j = 0; j < 4; j++) {
+        while(rx_empty()){}
         tag->blocks[0].w[j] = read_word_stream();
     }
 
@@ -259,11 +253,11 @@ tag_read:
 
 crypto_array_t *encrypt(const crypto_array_t *associated_data,
                         const crypto_array_t *plaintext, crypto_array_t *tag,
-                        crypto_array_t *text_out_buffer) {
+                        crypto_array_t *text_out_buffer, uint32_t rx_fifo_size, uint32_t tx_fifo_size) {
 
 #ifdef STREAM_DRIVER
     crypto_array_t *ciphertext = aead_process_stream(associated_data, plaintext,
-                                                     tag, text_out_buffer, 1);
+                                                     tag, text_out_buffer, 1, rx_fifo_size, tx_fifo_size);
 #endif
 
 #ifndef STREAM_DRIVER
@@ -277,11 +271,11 @@ crypto_array_t *encrypt(const crypto_array_t *associated_data,
 crypto_array_t *decrypt(const crypto_array_t *associated_data,
                         const crypto_array_t *ciphertext, crypto_array_t *tag,
                         crypto_array_t *text_out_buffer,
-                        crypto_array_t *resulting_tag_buffer) {
+                        crypto_array_t *resulting_tag_buffer,  uint32_t rx_fifo_size, uint32_t tx_fifo_size) {
 
 #ifdef STREAM_DRIVER
     crypto_array_t *plaintext = aead_process_stream(
-        associated_data, ciphertext, resulting_tag_buffer, text_out_buffer, 0);
+        associated_data, ciphertext, resulting_tag_buffer, text_out_buffer, 0, rx_fifo_size, tx_fifo_size);
 #endif
 
 #ifndef STREAM_DRIVER

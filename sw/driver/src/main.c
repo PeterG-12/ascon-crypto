@@ -12,6 +12,7 @@
 
 #include "../include/aead128_driver.h"
 #include "../include/aead128_helper.h"
+#include "aead128_slink.h"
 #include "neorv32_uart.h"
 #include <neorv32.h>
 #include <stddef.h>
@@ -92,8 +93,12 @@ int main() {
                       0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
                       0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F};
 
-    size_t plaintext_byte_len = 15;
-    size_t associated_data_byte_len = 4;
+    size_t plaintext_byte_len = 32;
+    size_t associated_data_byte_len = 32;
+
+    if (setup_stream() == -1) {
+        print_error("Failed to initalize streaming interface\n");
+    }
 
     // Main menu
     for (;;) {
@@ -194,9 +199,12 @@ void do_encryption_decryption(uint8_t pt[32], uint8_t ad[32],
         neorv32_uart0_printf("\n");
     }
 
+    int rx_fifo_size = get_rx_fifo_size();
+    int tx_fifo_size = get_tx_fifo_size();
+
     uint64_t before = neorv32_cpu_get_cycle();
     crypto_array_t *ciphertext =
-        encrypt(ad_block, pt_block, tag, text_out_buffer);
+        encrypt(ad_block, pt_block, tag, text_out_buffer, rx_fifo_size, tx_fifo_size);
     uint64_t after = neorv32_cpu_get_cycle();
     neorv32_uart0_printf("Encryption took: %d cycles\n", after - before);
 
@@ -214,7 +222,7 @@ void do_encryption_decryption(uint8_t pt[32], uint8_t ad[32],
 
     before = neorv32_cpu_get_cycle();
     crypto_array_t *plaintext = decrypt(ad_block, ciphertext, tag,
-                                        text_out_buffer, resulting_tag_buffer);
+                                        text_out_buffer, resulting_tag_buffer, rx_fifo_size, tx_fifo_size);
     after = neorv32_cpu_get_cycle();
     neorv32_uart0_printf("Decryption took: %d cycles\n", after - before);
 
@@ -228,8 +236,6 @@ void do_encryption_decryption(uint8_t pt[32], uint8_t ad[32],
     free_crypto_array(ad_block);
     free_crypto_array(key_block);
     free_crypto_array(nonce_block);
-    free_crypto_array(ciphertext);
-    free_crypto_array(plaintext);
     free_crypto_array(tag);
     free_crypto_array(resulting_tag_buffer);
     free_crypto_array(text_out_buffer);

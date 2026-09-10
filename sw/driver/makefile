@@ -10,7 +10,7 @@ MARCH = rv32i_zicsr_zifencei
 RISCV_PREFIX ?= riscv64-elf-
 
 # Override default optimization goal
-EFFORT = -O3
+EFFORT = -Os
  
 # Adjust processor IMEM size
 USER_FLAGS += -Wl,--defsym,__neorv32_rom_size=32k
