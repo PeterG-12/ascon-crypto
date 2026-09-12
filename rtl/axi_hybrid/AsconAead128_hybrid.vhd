@@ -87,7 +87,9 @@ architecture arch_imp of AsconAead128_hybrid is
   signal text_count_index               : unsigned(31 downto 0) := (others => '0');
   signal total_read                     : unsigned(31 downto 0) := (others => '0');
 
-  signal start_core_axi_lite     : std_logic := '0';
+  signal consumed                : unsigned(31 downto 0) := (others => '0');
+  signal produced                : unsigned(31 downto 0) := (others => '0');
+  signal start_core_axi_lite     : std_logic             := '0';
   signal finished_axi_lite       : std_logic;
   signal text_ready_axi_lite     : std_logic;
   signal word_processed_axi_lite : std_logic;
@@ -173,6 +175,8 @@ begin
 
       associated_data_count => associated_data_count_axi_lite,
       text_count            => text_count_axi_lite,
+      words_consumed        => consumed,
+      words_produced        => produced,
 
       module_interrupt_o => module_interrupt_o
     );
@@ -190,11 +194,10 @@ begin
         associated_data_index <= (others => '0');
         text_count_index      <= (others => '0');
         total_read            <= (others => '0');
-
+        consumed              <= (others => '0');
       else
         start_prev <= control_register_axi_lite(0);
-
-
+        
         if word_processed_axi_lite = '1' and core_initialized = '1' then
           if (associated_data_count_axi_lite > 0) and (associated_data_index < associated_data_count_axi_lite) then
             text_left_stream            <= '1';
@@ -224,6 +227,7 @@ begin
               associated_data_index <= (others => '0');
               text_count_index      <= (others => '0');
               total_read            <= (others => '0');
+              consumed              <= (others => '0');
 
               if to_integer(associated_data_count_axi_lite) = 0 then
                 associated_data_left_stream <= '0';
@@ -273,6 +277,7 @@ begin
                 s00_axis_tready      <= '0';
                 input_ready_stream   <= '1';
                 total_read           <= total_read + 1;
+                consumed             <= consumed + 1;
 
               end if;
             end if;
@@ -292,7 +297,7 @@ begin
         word_processed_prev   <= '0';
         out_buffer_fill       <= '0';
         m00_axis_tvalid       <= '0';
-
+        produced              <= (others => '0');
       else
         word_processed_prev <= word_processed_axi_lite;
         m00_axis_tlast      <= '0';
@@ -315,107 +320,110 @@ begin
               --text_out_holder(0) <= text_out_stream(95 downto 64);
             end if;
 
-            if finished_axi_lite = '1' and stream_master_counter = 0 then
-              m00_axis_tvalid <= '1';
 
-              stream_master_state   <= Valid_tag;
-              stream_master_counter <= stream_master_counter + 1;
-              tag_holder(3)         <= tag_axi_lite(63 downto 32);
-              tag_holder(2)         <= tag_axi_lite(31 downto 0);
-              tag_holder(1)         <= tag_axi_lite(127 downto 96);
-              m00_axis_tdata        <= tag_axi_lite(95 downto 64);
-              --tag_holder(0) <= tag_axi_lite(95 downto 64);
-            end if;
 
-          when Valid =>
-            if m00_axis_tready = '1' then
+              if finished_axi_lite = '1' and stream_master_counter = 0 then
+                m00_axis_tvalid <= '1';
 
-              m00_axis_tdata        <= text_out_holder(stream_master_counter);
-              stream_master_counter <= stream_master_counter + 1;
-
-              if stream_master_counter = 3 then
-                stream_master_state   <= Idle;
-                out_buffer_fill       <= '0';
-                stream_master_counter <= 0;
+                stream_master_state   <= Valid_tag;
+                stream_master_counter <= stream_master_counter + 1;
+                tag_holder(3)         <= tag_axi_lite(63 downto 32);
+                tag_holder(2)         <= tag_axi_lite(31 downto 0);
+                tag_holder(1)         <= tag_axi_lite(127 downto 96);
+                m00_axis_tdata        <= tag_axi_lite(95 downto 64);
+                --tag_holder(0) <= tag_axi_lite(95 downto 64);
               end if;
-            end if;
-          when Valid_tag =>
-            if m00_axis_tready = '1' then
 
-              m00_axis_tdata        <= tag_holder(stream_master_counter);
-              stream_master_counter <= stream_master_counter + 1;
+            when Valid =>
+              if m00_axis_tready = '1' then
 
-              if stream_master_counter = 3 then
-                stream_master_state   <= Idle;
-                out_buffer_fill       <= '0';
-                stream_master_counter <= 0;
-                m00_axis_tlast        <= '1';
+                m00_axis_tdata        <= text_out_holder(stream_master_counter);
+                stream_master_counter <= stream_master_counter + 1;
+
+                if stream_master_counter = 3 then
+                  stream_master_state   <= Idle;
+                  out_buffer_fill       <= '0';
+                  stream_master_counter <= 0;
+                  produced              <= produced + 1;
+                end if;
               end if;
-            end if;
-          when others => null;
-        end case;
+            when Valid_tag =>
+              if m00_axis_tready = '1' then
+
+                m00_axis_tdata        <= tag_holder(stream_master_counter);
+                stream_master_counter <= stream_master_counter + 1;
+
+                if stream_master_counter = 3 then
+                  stream_master_state   <= Idle;
+                  out_buffer_fill       <= '0';
+                  stream_master_counter <= 0;
+                  m00_axis_tlast        <= '1';
+                end if;
+              end if;
+            when others => null;
+            end case;
+        end if;
       end if;
-    end if;
-  end process;
+    end process;
 
-  -- Add user logic here
-  reset_active_high <= not aresetn;
+    -- Add user logic here
+    reset_active_high <= not aresetn;
 
-  stream_core : if USE_STREAM = true generate
-  begin
-    ascon_aead_inst : entity work.ascon_aead
-      port map
-      (
-        clk_i                       => aclk,
-        reset_i                     => reset_active_high,
-        start_i                     => control_register_axi_lite(0),
-        associated_data_word_left_i => associated_data_left_stream,
-        plaintext_word_left_i       => text_left_stream,
-        encrypt_mode_i              => control_register_axi_lite(3),
-        input_ready_i               => input_ready_stream,
-        start_core_o                => start_core_axi_lite,
-        finished_o                  => finished_axi_lite,
-        text_ready_o                => text_ready_axi_lite,
-        word_processed_o            => word_processed_axi_lite,
-        key_i                       => key_axi_lite,
-        nonce_i                     => nonce_axi_lite,
-        assoc_data_i                => text_in_stream,
-        text_i                      => text_in_stream,
-        text_o                      => text_out_stream,
-        tag_o                       => tag_axi_lite,
-        text_len_i                  => text_len_stream,
-        stall_i                     => out_buffer_fill,
-        core_initialized_o          => core_initialized
-      );
-  end generate;
+    stream_core : if USE_STREAM = true generate
+    begin
+      ascon_aead_inst : entity work.ascon_aead
+        port map
+        (
+          clk_i                       => aclk,
+          reset_i                     => reset_active_high,
+          start_i                     => control_register_axi_lite(0),
+          associated_data_word_left_i => associated_data_left_stream,
+          plaintext_word_left_i       => text_left_stream,
+          encrypt_mode_i              => control_register_axi_lite(3),
+          input_ready_i               => input_ready_stream,
+          start_core_o                => start_core_axi_lite,
+          finished_o                  => finished_axi_lite,
+          text_ready_o                => text_ready_axi_lite,
+          word_processed_o            => word_processed_axi_lite,
+          key_i                       => key_axi_lite,
+          nonce_i                     => nonce_axi_lite,
+          assoc_data_i                => text_in_stream,
+          text_i                      => text_in_stream,
+          text_o                      => text_out_stream,
+          tag_o                       => tag_axi_lite,
+          text_len_i                  => text_len_stream,
+          stall_i                     => out_buffer_fill,
+          core_initialized_o          => core_initialized
+        );
+    end generate;
 
-  non_stream_core : if USE_STREAM = false generate
-  begin
-    ascon_aead_inst : entity work.ascon_aead
-      port map
-      (
-        clk_i                       => aclk,
-        reset_i                     => reset_active_high,
-        start_i                     => control_register_axi_lite(0),
-        associated_data_word_left_i => control_register_axi_lite(1),
-        plaintext_word_left_i       => control_register_axi_lite(2),
-        encrypt_mode_i              => control_register_axi_lite(3),
-        input_ready_i               => control_register_axi_lite(4),
-        start_core_o                => start_core_axi_lite,
-        finished_o                  => finished_axi_lite,
-        text_ready_o                => text_ready_axi_lite,
-        word_processed_o            => word_processed_axi_lite,
-        key_i                       => key_axi_lite,
-        nonce_i                     => nonce_axi_lite,
-        assoc_data_i                => associated_data_axi_lite,
-        text_i                      => text_in_axi_lite,
-        text_o                      => text_out_axi_lite,
-        tag_o                       => tag_axi_lite,
-        text_len_i                  => text_len_axi_lite,
-        stall_i                     => '0',
-        core_initialized_o          => core_initialized
-      );
-  end generate;
-  -- User logic ends
+    non_stream_core : if USE_STREAM = false generate
+    begin
+      ascon_aead_inst : entity work.ascon_aead
+        port map
+        (
+          clk_i                       => aclk,
+          reset_i                     => reset_active_high,
+          start_i                     => control_register_axi_lite(0),
+          associated_data_word_left_i => control_register_axi_lite(1),
+          plaintext_word_left_i       => control_register_axi_lite(2),
+          encrypt_mode_i              => control_register_axi_lite(3),
+          input_ready_i               => control_register_axi_lite(4),
+          start_core_o                => start_core_axi_lite,
+          finished_o                  => finished_axi_lite,
+          text_ready_o                => text_ready_axi_lite,
+          word_processed_o            => word_processed_axi_lite,
+          key_i                       => key_axi_lite,
+          nonce_i                     => nonce_axi_lite,
+          assoc_data_i                => associated_data_axi_lite,
+          text_i                      => text_in_axi_lite,
+          text_o                      => text_out_axi_lite,
+          tag_o                       => tag_axi_lite,
+          text_len_i                  => text_len_axi_lite,
+          stall_i                     => '0',
+          core_initialized_o          => core_initialized
+        );
+    end generate;
+    -- User logic ends
 
-end arch_imp;
+  end arch_imp;

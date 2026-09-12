@@ -141,3 +141,11 @@ static inline void provide_associated_data_count(const uint32_t count){
 static inline void provide_text_count(const uint32_t count){
     write_32(A128_ADDR_TEXT_COUNT, count);
 }
+
+static inline uint32_t get_consumed_count(){
+    return read_32(A128_CONSUMED_COUNT);
+}
+
+static inline uint32_t get_produced_count(){
+    return read_32(A128_PRODUCED_COUNT);
+}
