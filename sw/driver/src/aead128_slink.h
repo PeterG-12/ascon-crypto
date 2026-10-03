@@ -1,7 +1,9 @@
 #include "../include/aead128_helper.h"
 #include "../include/aead128_driver.h"
 #include "aead128_hal.h"
+#include "neorv32_dma.h"
 #include "neorv32_slink.h"
+#include "neorv32_uart.h"
 #include <neorv32.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -38,7 +40,43 @@ static inline int rx_full() { return neorv32_slink_rx_full(); }
 
 
 static inline void write_word_stream(const uint32_t word) {
+    //neorv32_uart0_printf("Sent word: %x\n", word);
     A128_MMIO_W(SLINK_DATA, word);
 }
 
-static inline uint32_t read_word_stream() { return A128_MMIO_R(SLINK_DATA); }
+static inline uint32_t read_word_stream() { 
+    uint32_t data = A128_MMIO_R(SLINK_DATA);
+    //neorv32_uart0_printf("Read word: %x\n", data);
+    return data; }
+
+static inline void program_send(const void * src, void * dest, unsigned int count){
+    int dma_rc = neorv32_dma_program(
+    (uint32_t)(src), 
+    (uint32_t)(dest), 
+    DMA_SRC_INC_WORD |  
+    DMA_DST_CONST_WORD | 
+    count
+  );
+
+  if (dma_rc) {
+    print_error("Programming DMA descriptor failed!\n");
+  }
+
+  return;
+}
+
+static inline void program_recv(const void * src, void * dest, unsigned int count){
+    int dma_rc = neorv32_dma_program(
+    (uint32_t)(src), 
+    (uint32_t)(dest), 
+    DMA_SRC_CONST_WORD |  
+    DMA_DST_INC_WORD | 
+    count
+  );
+
+  if (dma_rc) {
+    print_error("Programming DMA descriptor failed!\n");
+  }
+
+  return;
+}

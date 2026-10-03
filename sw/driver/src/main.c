@@ -157,7 +157,7 @@ int main() {
                                             "============================\n"
                     ,
                                      benchmarks[i]);
-                do_encryption_decryption(pt, ad, benchmarks[i], 0, 0);
+                do_encryption_decryption(pt, ad, benchmarks[i], 0, 1);
             }
         }
 
@@ -247,9 +247,11 @@ uint8_t get_pseudo_random_byte(void){
 
     a = (b * b) % a;
     for(int i = 0; i < (a % b) / 5; i++){
-        b += (a / 12) + 2;
+        b += (a / 3) + 2;
         a -= 3;
     }
 
-    return a + b;
+    a ^= b;
+
+    return a;
 }

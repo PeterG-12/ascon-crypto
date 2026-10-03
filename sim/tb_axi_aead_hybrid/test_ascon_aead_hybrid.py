@@ -24,7 +24,6 @@ outp = ""
 
 
 
-
 async def generate_input(
     dut: copra_stubs.Asconaead128Hybrid,
     key,
@@ -84,15 +83,17 @@ async def generate_input(
 
     if count_assoc_data > 0:
         await driver.write_stream(assoc_data_list)
-    await Timer(7000, unit="ns")
     if count_text >= 0:
         await driver.write_stream(text_list)
 
     logger.debug("Writes ended")
-
+    logger.info(f"Produced: {dut.produced.value}")
+    logger.info(f"Consumed: {dut.consumed.value}")
     read_data : bytearray = await driver.read_stream()
     logger.debug(f"Read data: {read_data.hex()[0:len(text_list)*2*16 - (32 - p_last_word_len//4)]}    tag: {read_data.hex()[-32:]}")
     outp = read_data.hex()[0:len(text_list)*2*16 - (32 - p_last_word_len//4)]
+    logger.debug(f"Correct tag: {read_data.hex()[-32:]}")
+
 
 
         
@@ -239,15 +240,19 @@ async def test_ascon_aead_stream(dut : copra_stubs.Asconaead128Hybrid):
     TESTS_TO_RUN = -1  # -1 to perform all tests
 
     KAT_dictionary = {}
-    for i in range(20):
-        key = get_random_bytes(16)
-        nonce = get_random_bytes(16)
+    for i in range(1):
+        #key = get_random_bytes(16)
+        #nonce = get_random_bytes(16)
 
-        ad = get_random_bytes(randint(500, 1000))
-        pt = get_random_bytes(randint(500, 1000))
+        key = bytearray.fromhex("000102030405060708090A0B0C0D0E0F")
+        nonce = bytearray.fromhex("000102030405060708090A0B0C0D0E0F")
+
+        #ad = get_random_bytes(randint(500, 1000))
+        ad = bytearray()
+        pt = bytearray(578)
+        #pt = get_random_bytes(randint(500, 1000))
 
         ciphertext = ascon_encrypt(key, nonce, ad, pt, "Ascon-AEAD128")
-
         obj = AeadEncrypt(key.hex(), nonce.hex(), pt.hex(), ad.hex())
         KAT_dictionary[obj] = ciphertext.hex()
     

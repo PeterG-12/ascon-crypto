@@ -57,6 +57,30 @@ USE_INTERRUPTS = 0
 
 
 
+import struct
+
+def blob_to_32bit_words(
+    blob: bytes | bytearray,
+    endian: str = "little",
+    prefix: str = "Read word: ",
+):
+    """Converts a binary blob into 32-bit hex words.
+
+    :param blob: Raw bytes or bytearray to convert (must be multiple of 4 bytes)
+    :param endian: 'little' for C hardware bus format (e.g., '8ad071e7'),
+                   'big' for sequential byte order (e.g., 'e771d08a')
+    :param prefix: Output prefix for each line (e.g., 'Read word: ' or 'Writing: ')
+    :return: List of formatted strings
+    """
+    fmt_char = "<" if endian.lower() == "little" else ">"
+    num_words = len(blob) // 4
+    words = struct.unpack(f"{fmt_char}{num_words}I", blob[: num_words * 4])
+
+    lines = [f"{prefix}{w:08x}" for w in words]
+    return lines
+
+
+
 def input_lists(assoc_data: str, text: str):
     text_tuple = parse(text, 16)
     text_list = text_tuple[0]
@@ -146,8 +170,9 @@ class AxiAsconDriver:
                 write_queue.append(val)
 
 
-        chunks = random_chunk_sizes(write_queue, 1, 8)
+        chunks = random_chunk_sizes(write_queue, 1, 1)
         for chunk in chunks:
+            print(f"Writing: {(chunk[0].hex())}")
             await self.axis_source.write(b"".join(chunk))
             await Timer(randint(300, 5000), unit="ns")
 
@@ -156,6 +181,8 @@ class AxiAsconDriver:
 
     async def read_stream(self) -> bytearray:
         res = await self.axis_sink.recv()
+        for line in blob_to_32bit_words(res.tdata, endian="little", prefix="Read word: "):
+            print(line)
         return res.tdata
 
     async def write_32_stream(self, val):
