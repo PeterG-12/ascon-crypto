@@ -25,8 +25,15 @@ set current_vivado_version [version -short]
 
 if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
    puts ""
-   common::send_gid_msg -ssname BD::TCL -id 2040 -severity "CRITICAL WARNING" "This script was generated using Vivado <$scripts_vivado_version> without IP versions in the create_bd_cell commands, but is now being run in <$current_vivado_version> of Vivado. There may have been changes to the IP between Vivado <$scripts_vivado_version> and <$current_vivado_version>, which could impact the functionality and configuration of the design."
+   if { [string compare $scripts_vivado_version $current_vivado_version] > 0 } {
+      catch {common::send_gid_msg -ssname BD::TCL -id 2042 -severity "ERROR" " This script was generated using Vivado <$scripts_vivado_version> and is being run in <$current_vivado_version> of Vivado. Sourcing the script failed since it was created with a future version of Vivado."}
 
+   } else {
+     catch {common::send_gid_msg -ssname BD::TCL -id 2041 -severity "ERROR" "This script was generated using Vivado <$scripts_vivado_version> and is being run in <$current_vivado_version> of Vivado. Please run the script in Vivado <$scripts_vivado_version> then open the design in Vivado <$current_vivado_version>. Upgrade the design by running \"Tools => Report => Report IP Status...\", then run write_bd_tcl to create an updated script."}
+
+   }
+
+   return 1
 }
 
 ################################################################
@@ -87,7 +94,7 @@ if { ${design_name} eq "" } {
    set errMsg "Design <$design_name> already exists in your project, please set the variable <design_name> to another value."
    set nRet 1
 } elseif { [get_files -quiet ${design_name}.bd] ne "" } {
-   # USE CASES:
+   # USE CASES: 
    #    6) Current opened design, has components, but diff names, design_name exists in project.
    #    7) No opened design, design_name exists in project.
 
@@ -121,11 +128,11 @@ set bCheckIPsPassed 1
 ##################################################################
 set bCheckIPs 1
 if { $bCheckIPs == 1 } {
-   set list_check_ips "\
-NEORV32:user:neorv32_vivado_ip:*\
-peterg:user:ascon_aead128:*\
-xilinx.com:ip:smartconnect:*\
-xilinx.com:ip:proc_sys_reset:*\
+   set list_check_ips "\ 
+NEORV32:user:neorv32_vivado_ip:1.0\
+xilinx.com:ip:smartconnect:1.0\
+xilinx.com:ip:proc_sys_reset:5.0\
+peterg:user:AsconAead128_hybrid:1.0\
 "
 
    set list_ips_missing ""
@@ -204,7 +211,7 @@ proc create_root_design { parentCell } {
   set uart0_rxd_i_0 [ create_bd_port -dir I uart0_rxd_i_0 ]
 
   # Create instance: neorv32_vivado_ip_0, and set properties
-  set neorv32_vivado_ip_0 [ create_bd_cell -type ip -vlnv NEORV32:user:neorv32_vivado_ip neorv32_vivado_ip_0 ]
+  set neorv32_vivado_ip_0 [ create_bd_cell -type ip -vlnv NEORV32:user:neorv32_vivado_ip:1.0 neorv32_vivado_ip_0 ]
   set_property -dict [list \
     CONFIG.CACHE_BURSTS_EN {true} \
     CONFIG.CLOCK_FREQUENCY {50000000} \
@@ -212,6 +219,11 @@ proc create_root_design { parentCell } {
     CONFIG.DMEM_SIZE {32768} \
     CONFIG.IMEM_EN {true} \
     CONFIG.IMEM_SIZE {32768} \
+    CONFIG.IO_DMA_DSC_FIFO {512} \
+    CONFIG.IO_DMA_EN {true} \
+    CONFIG.IO_SLINK_EN {true} \
+    CONFIG.IO_SLINK_RX_FIFO {128} \
+    CONFIG.IO_SLINK_TX_FIFO {128} \
     CONFIG.IO_UART0_EN {true} \
     CONFIG.OCD_EN {true} \
     CONFIG.RISCV_ISA_Zicntr {true} \
@@ -219,29 +231,33 @@ proc create_root_design { parentCell } {
   ] $neorv32_vivado_ip_0
 
 
-  # Create instance: ascon_aead128_0, and set properties
-  set ascon_aead128_0 [ create_bd_cell -type ip -vlnv peterg:user:ascon_aead128 ascon_aead128_0 ]
-
   # Create instance: axi_smc, and set properties
-  set axi_smc [ create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect axi_smc ]
+  set axi_smc [ create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 axi_smc ]
   set_property CONFIG.NUM_SI {1} $axi_smc
 
 
   # Create instance: rst_clk_0_100M, and set properties
-  set rst_clk_0_100M [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset rst_clk_0_100M ]
+  set rst_clk_0_100M [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 rst_clk_0_100M ]
+
+  # Create instance: AsconAead128_hybrid_0, and set properties
+  set AsconAead128_hybrid_0 [ create_bd_cell -type ip -vlnv peterg:user:AsconAead128_hybrid:1.0 AsconAead128_hybrid_0 ]
+  set_property CONFIG.USE_STREAM {true} $AsconAead128_hybrid_0
+
 
   # Create interface connections
-  connect_bd_intf_net -intf_net axi_smc_M00_AXI [get_bd_intf_pins axi_smc/M00_AXI] [get_bd_intf_pins ascon_aead128_0/s00_axi]
+  connect_bd_intf_net -intf_net AsconAead128_hybrid_0_M00_AXIS [get_bd_intf_pins neorv32_vivado_ip_0/s1_axis] [get_bd_intf_pins AsconAead128_hybrid_0/M00_AXIS]
+  connect_bd_intf_net -intf_net axi_smc_M00_AXI [get_bd_intf_pins axi_smc/M00_AXI] [get_bd_intf_pins AsconAead128_hybrid_0/S00_AXI]
   connect_bd_intf_net -intf_net neorv32_vivado_ip_0_m_axi [get_bd_intf_pins neorv32_vivado_ip_0/m_axi] [get_bd_intf_pins axi_smc/S00_AXI]
+  connect_bd_intf_net -intf_net neorv32_vivado_ip_0_s0_axis [get_bd_intf_pins neorv32_vivado_ip_0/s0_axis] [get_bd_intf_pins AsconAead128_hybrid_0/S00_AXIS]
 
   # Create port connections
-  connect_bd_net -net ascon_aead128_0_module_interrupt_o  [get_bd_pins ascon_aead128_0/module_interrupt_o] \
+  connect_bd_net -net AsconAead128_hybrid_0_module_interrupt_o  [get_bd_pins AsconAead128_hybrid_0/module_interrupt_o] \
   [get_bd_pins neorv32_vivado_ip_0/irq_mei_i]
   connect_bd_net -net clk_0_1  [get_bd_ports clk_0] \
   [get_bd_pins neorv32_vivado_ip_0/clk] \
   [get_bd_pins axi_smc/aclk] \
-  [get_bd_pins ascon_aead128_0/s00_axi_aclk] \
-  [get_bd_pins rst_clk_0_100M/slowest_sync_clk]
+  [get_bd_pins rst_clk_0_100M/slowest_sync_clk] \
+  [get_bd_pins AsconAead128_hybrid_0/aclk]
   connect_bd_net -net jtag_tck_i_0_1  [get_bd_ports jtag_tck_i_0] \
   [get_bd_pins neorv32_vivado_ip_0/jtag_tck_i]
   connect_bd_net -net jtag_tdi_i_0_1  [get_bd_ports jtag_tdi_i_0] \
@@ -256,13 +272,13 @@ proc create_root_design { parentCell } {
   [get_bd_pins rst_clk_0_100M/ext_reset_in]
   connect_bd_net -net rst_clk_0_100M_peripheral_aresetn  [get_bd_pins rst_clk_0_100M/peripheral_aresetn] \
   [get_bd_pins axi_smc/aresetn] \
-  [get_bd_pins ascon_aead128_0/s00_axi_aresetn] \
-  [get_bd_pins neorv32_vivado_ip_0/resetn]
+  [get_bd_pins neorv32_vivado_ip_0/resetn] \
+  [get_bd_pins AsconAead128_hybrid_0/aresetn]
   connect_bd_net -net uart0_rxd_i_0_1  [get_bd_ports uart0_rxd_i_0] \
   [get_bd_pins neorv32_vivado_ip_0/uart0_rxd_i]
 
   # Create address segments
-  assign_bd_address -offset 0x44A00000 -range 0x00001000 -target_address_space [get_bd_addr_spaces neorv32_vivado_ip_0/m_axi] [get_bd_addr_segs ascon_aead128_0/s00_axi/reg0] -force
+  assign_bd_address -offset 0x44A00000 -range 0x00010000 -target_address_space [get_bd_addr_spaces neorv32_vivado_ip_0/m_axi] [get_bd_addr_segs AsconAead128_hybrid_0/S00_AXI/S00_AXI_reg] -force
 
 
   # Restore current instance

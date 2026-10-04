@@ -18,7 +18,7 @@ if {![file exists $neorv_ip_dir]} {
 create_project $proj_name $proj_dir -part $fpga_part -force
 
 # Create ip catalog
-set_property ip_repo_paths [list ./ip_repo/ascon_aead128 $neorv_ip_dir] [current_project]
+set_property ip_repo_paths [list ./ip_repo/ascon_aead128_hybrid $neorv_ip_dir] [current_project]
 update_ip_catalog
 
 # Take the block diagram script

@@ -4,6 +4,10 @@ Hardware software co-development repository showcasing development in parallel i
 
 The repository includes a bare-metal C driver that was loaded onto the [NEORV32 processor](https://github.com/stnolting/neorv32.git) running on the [Artix-7 Wukong Dev Board FPGA](https://github.com/ChinaQMTECH/QM_XC7A100T_WUKONG_BOARD.git) and handles the handshaking and MMIO of the hardware module. Currently the example can be accessed through a simple CLI program over UART. This was also verified with KATs and its benchmarks can be seen in the tables below.
 
+Currently the example can be accessed trough an UART interface
+
+![UART CLI Demo](images/presentation/demo_uart.gif)
+
 ## Features
 
 * Ascon Core state machine
@@ -14,6 +18,7 @@ The repository includes a bare-metal C driver that was loaded onto the [NEORV32 
 * Ascon-AEAD128 hybrid peripheral using Axi-Lite for control and Axi-Stream for data streaming, hardware module and cocotb testbench
 * Polling based bare-metal C driver for both Axi-Lite and Axi-Stream implementations deployable onto the NEORV32
 * Interrupt based version of C driver using RISC-V's MEI
+
 
 
 ## Toolchain & Development Methodology
@@ -28,7 +33,21 @@ The project was developed incrementally, performing comparisons at each step aga
 
 Many thanks to all developers that provided these tools.
 
+## Hardware Verification Waveforms
+
+### Execution overview
+![AXI-Stream Execution Overview](images/presentation/axi-stream-overview.png)
+
+### Cycle by cycle AXI-Stream Handshaking
+![AXI-Stream Bus Handshake](images/presentation/axi-stream-handshake.png)
+
 ## Synthesis and Implementation information (baseline Axi-Lite implementation)
+
+
+### SoC block design
+![AXI-Stream SoC Block Design](images/presentation/axi-stream-blockdesign.png)
+
+
 Elements used by the AsconAead128
 
 | Resource | Utilization |
@@ -89,7 +108,7 @@ On Linux with vivado installed:
 
 ```bash
 git clone https://github.com/PeterG-12/ascon-crypto.git ascon-crypto
-cd ascon-crypto/sim
+cd ascon-crypto
 mkdir build
 vivado -mode batch -source build_project.tcl 
 ```
@@ -143,6 +162,6 @@ Taken from [ascon-c](https://github.com/ascon/ascon-c.git)
 | **NEORV32 + AXI-Stream HW module SoC (RISC-V) (Hybrid)** | **621** | **77.6** | **48.5** | **29.1** | **19.4** | **10.2** | **~9.9** |
 | **Cocotb HW Simulation** | **113** | **14.1** | **8.8** | **5.6** | **4.0** | **2.5** | **~2.4** |
 
-![CPU comparison schematic](images/ascon_cpu_comparison_1536b.png)
-![Raw cycles schematic](images/ascon_raw_cycles.png)
-![CPU scaling schematic](images/ascon_scaling_cpb.png)
+![CPU comparison schematic](images/charts/ascon_cpu_comparison_1536b.png)
+![Raw cycles schematic](images/charts/ascon_raw_cycles.png)
+![CPU scaling schematic](images/charts/ascon_scaling_cpb.png)

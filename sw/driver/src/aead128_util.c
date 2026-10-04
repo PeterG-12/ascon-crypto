@@ -49,7 +49,7 @@ uint8_t nibble_to_byte(const char c){
     }
 
     if(c >= 'a' && c <= 'f'){
-        return (10 + (uint8_t)(c - '0'));
+        return (10 + (uint8_t)(c - 'a'));
     }
 
     return 0;
