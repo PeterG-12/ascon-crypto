@@ -10,13 +10,15 @@ The repository includes a bare-metal C driver that was loaded onto the [NEORV32 
 * Ascon-AEAD128 encryption/decryption hardware module
 * Ascon-Hash256 hardware module
 * Cocotb testbenches for each module with KAT and constrained random value tests
-* Ascon-AEAD128 AXI-Lite peripheral hardware module and cocotb testbench with KAT
-* Polling based bare-metal C driver deployable onto the NEORV32
+* Ascon-AEAD128 Axi-Lite peripheral hardware module and cocotb testbench with KAT
+* Ascon-AEAD128 hybrid peripheral using Axi-Lite for control and Axi-Stream for data streaming, hardware module and cocotb testbench
+* Polling based bare-metal C driver for both Axi-Lite and Axi-Stream implementations deployable onto the NEORV32
 * Interrupt based version of C driver using RISC-V's MEI
+
 
 ## Toolchain & Development Methodology
 
-The produced KATs cover many edge cases including both empty, padding-aligned and non-aligned inputs.
+The produced KATs cover many edge cases including empty, padding-aligned and non-aligned inputs.
 The project was developed incrementally, performing comparisons at each step against the reference software implementation taken from [pyascon](https://github.com/meichlseder/pyascon.git). 
 
 * **HDL:** [TerosHDL](https://terostechnology.github.io) extension for VSCodium
@@ -26,8 +28,8 @@ The project was developed incrementally, performing comparisons at each step aga
 
 Many thanks to all developers that provided these tools.
 
-## Synthesis and Implementation information
-Elements used by the AsconAead128 axi-lite module
+## Synthesis and Implementation information (baseline Axi-Lite implementation)
+Elements used by the AsconAead128
 
 | Resource | Utilization |
 | --- | --- |
@@ -45,7 +47,7 @@ Vivado timing analysis for the whole SoC confirms that the timing closures acros
 - Hold WHS: 0.061 ns (Met)
 - Pulse Width WPWS: 7.0 ns (Met)
 
-## Continous Integration using Github actions
+## Continuous Integration using Github actions
 
 Automated regression runs execute on every push via *GitHub Actions* using *GHDL* and *Cocotb* to verify:
 * `ascon_hash`
@@ -93,28 +95,29 @@ Then open the project in ```build/```
 
 ## Ascon accelerator benchmark
 
-The raw results from benchmarking can be found in the table below.
-Note: the constant 161 cycle difference between encryption stems from tag checking in decryption
+> **Benchmark Note:** The Axi-Lite results below show the performance of the baseline implementation found in at v0.1-axilite tag. The current hybrid module has the superior Axi-Stream implementation and is visibly faster. Still a possibility for using the Axi-Lite driver is preserved however currently it is slower than the baseline implementation. 
 
-| Message Length | Encryption (Cycles) | Decryption & Tag Checking (Cycles) | Cocotb Encryption (Cycles) |
-| --- | --- | --- | --- |
-| 1 Byte | 940 | 1,101 | 113 |
-| 8 Bytes | 940 | 1,101 | 113 |
-| 16 Bytes | 1,132 | 1,293 | 140 |
-| 32 Bytes | 1,397 | 1,558 | 179 |
-| 64 Bytes | 1,927 | 2,088 | 257 |
-| 1,536 Bytes | 26,307 | 26,468 | 3,845 |
+The raw results from benchmarking can be found in the table below.
+
+| Message Length | Encryption (Cycles) Axi-Lite | Decryption & Tag Checking (Cycles)  Axi-Lite | Cocotb Encryption (Cycles) | Encryption (Cycles) Axi-Stream |
+| --- | --- | --- | --- | --- |
+| 1 Byte | 940 | 1101 | 113 | 621 |
+| 8 Bytes | 940 | 1101 | 113 | 621 |
+| 16 Bytes | 1132 | 1293 | 140 | 776 |
+| 32 Bytes | 1397 | 1558 | 179 | 931 |
+| 64 Bytes | 1927 | 2088 | 257 | 1241 |
+| 1,536 Bytes | 26307 | 26468 | 3845 | 15637 |
 
 Results translated to cycles per byte.
 
-| Message Length | NEORV32 SoC Encryption (cpb) | Cocotb Simulation Encryption (cpb) |
+| Message Length | NEORV32 SoC Encryption Axi-lite (cpb) | NEORV32 SoC Encryption Axi-stream (cpb) | Cocotb Simulation Encryption (cpb) |
 | --- | --- | --- |
-| 1 Byte | 940.00 | 113.00 |
-| 8 Bytes | 117.50 | 14.13 |
-| 16 Bytes | 70.75 | 8.75 |
-| 32 Bytes | 43.66 | 5.59 |
-| 64 Bytes | 30.11 | 4.02 |
-| 1,536 Bytes | 17.13 | 2.50 |
+| 1 Byte | 940.00  | 621.00 | 113.0 |
+| 8 Bytes | 117.50 | 77.6 | 14.13 |
+| 16 Bytes | 70.75 | 48.5 | 8.75 |
+| 32 Bytes | 43.66 | 29.1 | 5.59 |
+| 64 Bytes | 30.11 | 19.4 | 4.02 |
+| 1,536 Bytes | 17.13| 10.2 | 2.50 |
 
 ## Comparison to estimated performance results on different CPUs in cycles per byte
 
@@ -133,7 +136,8 @@ Taken from [ascon-c](https://github.com/ascon/ascon-c.git)
 | Cortex-A7 (NEON) | 2204 | 226 | 132 | 82 | 55.9 | 31.7 | 30.7 |
 | Cortex-A7 (ARMv7)* |  |  |  |  | 55.5 | 38.2 | 37.5 |
 | ARM1176JZF-S (ARMv6) | 1908 | 235 | 156 | 99 | 70.4 | 43.0 | 42.9 |
-| **NEORV32 + AXI-Lite HW module SoC (RISC-V)** | **940** | **117.5** | **70.8** | **43.7** | **30.1** | **17.1** | **~16.6** |
+| **NEORV32 + AXI-Lite HW module SoC (RISC-V) (Baseline v0.1)** | **940** | **117.5** | **70.8** | **43.7** | **30.1** | **17.1** | **~16.6** |
+| **NEORV32 + AXI-Stream HW module SoC (RISC-V) (Hybrid)** | **621** | **77.6** | **48.5** | **29.1** | **19.4** | **10.2** | **~9.9** |
 | **Cocotb HW Simulation** | **113** | **14.1** | **8.8** | **5.6** | **4.0** | **2.5** | **~2.4** |
 
 ![CPU comparison schematic](images/ascon_cpu_comparison_1536b.png)

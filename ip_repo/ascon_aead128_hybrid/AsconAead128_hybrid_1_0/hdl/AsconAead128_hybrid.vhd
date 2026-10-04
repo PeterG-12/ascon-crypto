@@ -181,216 +181,216 @@ begin
 
       module_interrupt_o => module_interrupt_o
     );
-
-  text_in_stream <= text_in_holder(1) & text_in_holder(0) & text_in_holder(3) & text_in_holder(2);
-
-  axi_stream_slave : process (aclk)
-  begin
-    if rising_edge(aclk) then
-      if aresetn = '0' then
-        s00_axis_tready       <= '0';
-        stream_slave_counter  <= 0;
-        start_prev            <= '0';
-        start_latched         <= '0';
-        associated_data_index <= (others => '0');
-        text_count_index      <= (others => '0');
-        total_read            <= (others => '0');
-        consumed              <= (others => '0');
-      else
-        start_prev <= control_register_axi_lite(0);
-        word_processed_prev <= word_processed_axi_lite;
-
-        if word_processed_prev = '0' and word_processed_axi_lite = '1' and core_initialized = '1' then
-          if (associated_data_count_axi_lite > 0) and (associated_data_index < associated_data_count_axi_lite) then
-            text_left_stream            <= '1';
-            associated_data_left_stream <= '1';
-            associated_data_index       <= associated_data_index + 1;
-          elsif (text_count_index < text_count_axi_lite) then
-            if text_count_index = (text_count_axi_lite - 1) then
-              text_len_stream  <= text_len_axi_lite;
-              text_left_stream <= '0';
-            else
-              text_left_stream <= '1';
-            end if;
-            associated_data_left_stream <= '0';
-
-            text_count_index <= text_count_index + 1;
-          else
-            text_left_stream            <= '0';
-            associated_data_left_stream <= '0';
-          end if;
-        end if;
-
-        case stream_slave_state is
-          when Idle =>
-            -- Start rising edge
-            s00_axis_tready <= '0';
-
-            if start_prev = '0' and control_register_axi_lite(0) = '1' then
-              associated_data_index <= (others => '0');
-              text_count_index      <= (others => '0');
-              total_read            <= (others => '0');
-              consumed              <= (others => '0');
-
-              if to_integer(associated_data_count_axi_lite) = 0 then
-                associated_data_left_stream <= '0';
-                text_count_index            <= to_unsigned(1, 32);
-              else
-                associated_data_left_stream <= '1';
-                associated_data_index       <= to_unsigned(1, 32);
-              end if;
-
-              if to_integer(text_count_axi_lite) <= 1 then
-                text_left_stream                   <= '0';
-                text_len_stream                    <= text_len_axi_lite;
-              else
-                text_len_stream  <= 128;
-                text_left_stream <= '1';
-              end if;
-
-              start_latched      <= '1';
-              input_ready_stream <= '1';
-            end if;
-
-            if start_latched = '1' then
-              input_ready_stream <= '0';
-              start_latched      <= '0';
-              s00_axis_tready    <= '1';
-              stream_slave_state <= Ready;
-            end if;
-
-            if core_initialized = '1' and out_buffer_fill = '0' then
-              if start_core_axi_lite = '1' and stream_slave_counter = 0 then
-                if total_read < (associated_data_count_axi_lite + text_count_axi_lite) or (text_count_index = 0 and total_read = associated_data_count_axi_lite) then
-                  input_ready_stream <= '0';
-                  s00_axis_tready    <= '1';
-                  stream_slave_state <= Ready;
-                end if;
-              end if;
-            end if;
-
-          when Ready =>
-            if s00_axis_tvalid = '1' then
-              text_in_holder(stream_slave_counter) <= s00_axis_tdata;
-              stream_slave_counter                 <= stream_slave_counter + 1;
-
-              if stream_slave_counter = 3 then
-                stream_slave_state   <= Idle;
-                stream_slave_counter <= 0;
-                s00_axis_tready      <= '0';
-                input_ready_stream   <= '1';
-                total_read           <= total_read + 1;
-                consumed             <= consumed + 1;
-
-              end if;
-            end if;
-          when others => null;
-        end case;
-
-      end if;
-    end if;
-  end process;
-
-  axi_stream_master : process (aclk)
-  begin
-    if rising_edge(aclk) then
-      if aresetn = '0' then
-        stream_master_counter <= 0;
-        m00_axis_tdata        <= (others => '0');
-        text_ready_prev   <= '0';
-        out_buffer_fill       <= '0';
-        m00_axis_tvalid       <= '0';
-        produced              <= (others => '0');
-      else
-        text_ready_prev <= text_ready_axi_lite;
-        m00_axis_tlast      <= '0';
-
-        if start_prev = '0' and control_register_axi_lite(0) = '1' then
-          produced <= (others => '0');
-        end if;
-
-        case stream_master_state is
-          when Idle =>
-            m00_axis_tvalid <= '0';
-            m00_axis_tdata  <= (others => '0');
-            m00_axis_tlast      <= '0';
-
-            if text_ready_prev = '0' and text_ready_axi_lite = '1' and stream_master_counter = 0 then
-              m00_axis_tvalid <= '1';
-              out_buffer_fill <= '1';
-
-              stream_master_state   <= Valid;
-              stream_master_counter <= stream_master_counter + 1;
-
-              text_out_holder(3) <= text_out_stream(63 downto 32);
-              text_out_holder(2) <= text_out_stream(31 downto 0);
-              text_out_holder(1) <= text_out_stream(127 downto 96);
-              m00_axis_tdata     <= text_out_stream(95 downto 64);
-              --text_out_holder(0) <= text_out_stream(95 downto 64);
-            end if;
-
-            if finished_axi_lite = '1' and stream_master_counter = 0 then
-              m00_axis_tvalid <= '1';
-
-              stream_master_state   <= Valid_tag;
-              stream_master_counter <= stream_master_counter + 1;
-              tag_holder(3)         <= tag_axi_lite(63 downto 32);
-              tag_holder(2)         <= tag_axi_lite(31 downto 0);
-              tag_holder(1)         <= tag_axi_lite(127 downto 96);
-              m00_axis_tdata        <= tag_axi_lite(95 downto 64);
-              --tag_holder(0) <= tag_axi_lite(95 downto 64);
-            end if;
-
-          when Valid =>
-            if m00_axis_tready = '1' then
-
-              if stream_master_counter < 4 then
-                m00_axis_tdata        <= text_out_holder(stream_master_counter);
-              end if;
-              
-              stream_master_counter <= stream_master_counter + 1;
-
-              if stream_master_counter = 4 then
-                stream_master_state   <= Idle;
-                out_buffer_fill       <= '0';
-                stream_master_counter <= 0;
-                m00_axis_tvalid <= '0';
-                m00_axis_tdata  <= (others => '0');
-                produced              <= produced + 1;
-              end if;
-            end if;
-          when Valid_tag =>
-            if m00_axis_tready = '1' then
-
-              if stream_master_counter < 4 then
-                if stream_master_counter = 3 then 
-                    m00_axis_tlast        <= '1';
-                end if;
-                m00_axis_tdata        <= tag_holder(stream_master_counter);
-              end if;
-
-              stream_master_counter <= stream_master_counter + 1;
-
-              if stream_master_counter = 4 then
-                stream_master_state   <= Idle;
-                out_buffer_fill       <= '0';
-                stream_master_counter <= 0;
-                m00_axis_tvalid <= '0';
-                m00_axis_tdata  <= (others => '0');
-                m00_axis_tlast        <= '1';
-              end if;
-            end if;
-          when others => null;
-        end case;
-      end if;
-    end if;
-  end process;
-
-  -- Add user logic here
+    
   reset_active_high <= not aresetn;
 
   stream_core : if USE_STREAM = true generate
   begin
+
+    text_in_stream <= text_in_holder(1) & text_in_holder(0) & text_in_holder(3) & text_in_holder(2);
+
+    axi_stream_slave : process (aclk)
+    begin
+      if rising_edge(aclk) then
+        if aresetn = '0' then
+          s00_axis_tready       <= '0';
+          stream_slave_counter  <= 0;
+          start_prev            <= '0';
+          start_latched         <= '0';
+          associated_data_index <= (others => '0');
+          text_count_index      <= (others => '0');
+          total_read            <= (others => '0');
+          consumed              <= (others => '0');
+        else
+          start_prev          <= control_register_axi_lite(0);
+          word_processed_prev <= word_processed_axi_lite;
+
+          if word_processed_prev = '0' and word_processed_axi_lite = '1' and core_initialized = '1' then
+            if (associated_data_count_axi_lite > 0) and (associated_data_index < associated_data_count_axi_lite) then
+              text_left_stream            <= '1';
+              associated_data_left_stream <= '1';
+              associated_data_index       <= associated_data_index + 1;
+            elsif (text_count_index < text_count_axi_lite) then
+              if text_count_index = (text_count_axi_lite - 1) then
+                text_len_stream  <= text_len_axi_lite;
+                text_left_stream <= '0';
+              else
+                text_left_stream <= '1';
+              end if;
+              associated_data_left_stream <= '0';
+
+              text_count_index <= text_count_index + 1;
+            else
+              text_left_stream            <= '0';
+              associated_data_left_stream <= '0';
+            end if;
+          end if;
+
+          case stream_slave_state is
+            when Idle =>
+              -- Start rising edge
+              s00_axis_tready <= '0';
+
+              if start_prev = '0' and control_register_axi_lite(0) = '1' then
+                associated_data_index <= (others => '0');
+                text_count_index      <= (others => '0');
+                total_read            <= (others => '0');
+                consumed              <= (others => '0');
+
+                if to_integer(associated_data_count_axi_lite) = 0 then
+                  associated_data_left_stream <= '0';
+                  text_count_index            <= to_unsigned(1, 32);
+                else
+                  associated_data_left_stream <= '1';
+                  associated_data_index       <= to_unsigned(1, 32);
+                end if;
+
+                if to_integer(text_count_axi_lite) <= 1 then
+                  text_left_stream                   <= '0';
+                  text_len_stream                    <= text_len_axi_lite;
+                else
+                  text_len_stream  <= 128;
+                  text_left_stream <= '1';
+                end if;
+
+                start_latched      <= '1';
+                input_ready_stream <= '1';
+              end if;
+
+              if start_latched = '1' then
+                input_ready_stream <= '0';
+                start_latched      <= '0';
+                s00_axis_tready    <= '1';
+                stream_slave_state <= Ready;
+              end if;
+
+              if core_initialized = '1' and out_buffer_fill = '0' then
+                if start_core_axi_lite = '1' and stream_slave_counter = 0 then
+                  if total_read < (associated_data_count_axi_lite + text_count_axi_lite) or (text_count_index = 0 and total_read = associated_data_count_axi_lite) then
+                    input_ready_stream <= '0';
+                    s00_axis_tready    <= '1';
+                    stream_slave_state <= Ready;
+                  end if;
+                end if;
+              end if;
+
+            when Ready =>
+              if s00_axis_tvalid = '1' then
+                text_in_holder(stream_slave_counter) <= s00_axis_tdata;
+                stream_slave_counter                 <= stream_slave_counter + 1;
+
+                if stream_slave_counter = 3 then
+                  stream_slave_state   <= Idle;
+                  stream_slave_counter <= 0;
+                  s00_axis_tready      <= '0';
+                  input_ready_stream   <= '1';
+                  total_read           <= total_read + 1;
+                  consumed             <= consumed + 1;
+
+                end if;
+              end if;
+            when others => null;
+          end case;
+
+        end if;
+      end if;
+    end process;
+
+    axi_stream_master : process (aclk)
+    begin
+      if rising_edge(aclk) then
+        if aresetn = '0' then
+          stream_master_counter <= 0;
+          m00_axis_tdata        <= (others => '0');
+          text_ready_prev       <= '0';
+          out_buffer_fill       <= '0';
+          m00_axis_tvalid       <= '0';
+          produced              <= (others => '0');
+        else
+          text_ready_prev <= text_ready_axi_lite;
+          m00_axis_tlast  <= '0';
+
+          if start_prev = '0' and control_register_axi_lite(0) = '1' then
+            produced <= (others => '0');
+          end if;
+
+          case stream_master_state is
+            when Idle =>
+              m00_axis_tvalid <= '0';
+              m00_axis_tdata  <= (others => '0');
+              m00_axis_tlast  <= '0';
+
+              if text_ready_prev = '0' and text_ready_axi_lite = '1' and stream_master_counter = 0 then
+                m00_axis_tvalid <= '1';
+                out_buffer_fill <= '1';
+
+                stream_master_state   <= Valid;
+                stream_master_counter <= stream_master_counter + 1;
+
+                text_out_holder(3) <= text_out_stream(63 downto 32);
+                text_out_holder(2) <= text_out_stream(31 downto 0);
+                text_out_holder(1) <= text_out_stream(127 downto 96);
+                m00_axis_tdata     <= text_out_stream(95 downto 64);
+                --text_out_holder(0) <= text_out_stream(95 downto 64);
+              end if;
+
+              if finished_axi_lite = '1' and stream_master_counter = 0 then
+                m00_axis_tvalid <= '1';
+
+                stream_master_state   <= Valid_tag;
+                stream_master_counter <= stream_master_counter + 1;
+                tag_holder(3)         <= tag_axi_lite(63 downto 32);
+                tag_holder(2)         <= tag_axi_lite(31 downto 0);
+                tag_holder(1)         <= tag_axi_lite(127 downto 96);
+                m00_axis_tdata        <= tag_axi_lite(95 downto 64);
+                --tag_holder(0) <= tag_axi_lite(95 downto 64);
+              end if;
+
+            when Valid =>
+              if m00_axis_tready = '1' then
+
+                if stream_master_counter < 4 then
+                  m00_axis_tdata <= text_out_holder(stream_master_counter);
+                end if;
+
+                stream_master_counter <= stream_master_counter + 1;
+
+                if stream_master_counter = 4 then
+                  stream_master_state   <= Idle;
+                  out_buffer_fill       <= '0';
+                  stream_master_counter <= 0;
+                  m00_axis_tvalid       <= '0';
+                  m00_axis_tdata        <= (others => '0');
+                  produced              <= produced + 1;
+                end if;
+              end if;
+            when Valid_tag =>
+              if m00_axis_tready = '1' then
+
+                if stream_master_counter < 4 then
+                  if stream_master_counter = 3 then
+                    m00_axis_tlast <= '1';
+                  end if;
+                  m00_axis_tdata <= tag_holder(stream_master_counter);
+                end if;
+
+                stream_master_counter <= stream_master_counter + 1;
+
+                if stream_master_counter = 4 then
+                  stream_master_state   <= Idle;
+                  out_buffer_fill       <= '0';
+                  stream_master_counter <= 0;
+                  m00_axis_tvalid       <= '0';
+                  m00_axis_tdata        <= (others => '0');
+                  m00_axis_tlast        <= '1';
+                end if;
+              end if;
+            when others => null;
+          end case;
+        end if;
+      end if;
+    end process;
+
     ascon_aead_inst : entity work.ascon_aead
       port map
       (

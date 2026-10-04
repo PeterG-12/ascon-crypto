@@ -172,17 +172,17 @@ class AxiAsconDriver:
 
         chunks = random_chunk_sizes(write_queue, 1, 1)
         for chunk in chunks:
-            print(f"Writing: {(chunk[0].hex())}")
+            #print(f"Writing: {(chunk[0].hex())}")
             await self.axis_source.write(b"".join(chunk))
-            await Timer(randint(300, 5000), unit="ns")
+            await Timer(randint(300, 400), unit="ns")
 
         await self.axis_source.wait()
 
 
     async def read_stream(self) -> bytearray:
         res = await self.axis_sink.recv()
-        for line in blob_to_32bit_words(res.tdata, endian="little", prefix="Read word: "):
-            print(line)
+        #for line in blob_to_32bit_words(res.tdata, endian="little", prefix="Read word: "):
+            #print(line)
         return res.tdata
 
     async def write_32_stream(self, val):

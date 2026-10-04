@@ -9,6 +9,9 @@
 #include <string.h>
 #include <sys/unistd.h>
 
+
+#define STREAM_DRIVER
+
 static volatile uint8_t interrupt_fired;
 static volatile uint32_t rx_fifo_depth;
 
@@ -29,8 +32,7 @@ crypto_array_t *aead_process_stream(const crypto_array_t *associated_data,
                                     const crypto_array_t *text_in,
                                     crypto_array_t *tag,
                                     crypto_array_t *text_out_buffer,
-                                    uint8_t encrypt_mode, uint32_t rx_fifo_size,
-                                    uint32_t tx_fifo_size) {
+                                    uint8_t encrypt_mode) {
     interrupt_fired = 0;
     uint32_t control = 0;
 
@@ -64,6 +66,10 @@ crypto_array_t *aead_process_stream(const crypto_array_t *associated_data,
         for (int j = 0; j < 4; j++) {
             write_word_stream(associated_data->blocks[i].w[j]);
         }
+    }
+
+    if(!text_in_count){
+        text_in_count = 1;
     }
 
     int text_received = 0;
@@ -257,13 +263,11 @@ tag_read:
 
 crypto_array_t *encrypt(const crypto_array_t *associated_data,
                         const crypto_array_t *plaintext, crypto_array_t *tag,
-                        crypto_array_t *text_out_buffer, uint32_t rx_fifo_size,
-                        uint32_t tx_fifo_size) {
+                        crypto_array_t *text_out_buffer) {
 
 #ifdef STREAM_DRIVER
     crypto_array_t *ciphertext =
-        aead_process_stream(associated_data, plaintext, tag, text_out_buffer, 1,
-                            rx_fifo_size, tx_fifo_size);
+        aead_process_stream(associated_data, plaintext, tag, text_out_buffer, 1);
 #endif
 
 #ifndef STREAM_DRIVER
@@ -277,13 +281,12 @@ crypto_array_t *encrypt(const crypto_array_t *associated_data,
 crypto_array_t *decrypt(const crypto_array_t *associated_data,
                         const crypto_array_t *ciphertext, crypto_array_t *tag,
                         crypto_array_t *text_out_buffer,
-                        crypto_array_t *resulting_tag_buffer,
-                        uint32_t rx_fifo_size, uint32_t tx_fifo_size) {
+                        crypto_array_t *resulting_tag_buffer) {
 
 #ifdef STREAM_DRIVER
     crypto_array_t *plaintext =
         aead_process_stream(associated_data, ciphertext, resulting_tag_buffer,
-                            text_out_buffer, 0, rx_fifo_size, tx_fifo_size);
+                            text_out_buffer, 0);
 #endif
 
 #ifndef STREAM_DRIVER

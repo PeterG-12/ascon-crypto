@@ -40,4 +40,7 @@ jobs:
         make
         cd ..
         cd tb_axi_aead
+        make
+        cd ..
+        cd tb_axi_aead_hybrid
         make 

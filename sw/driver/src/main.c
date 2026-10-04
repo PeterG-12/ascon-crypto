@@ -157,7 +157,7 @@ int main() {
                                             "============================\n"
                     ,
                                      benchmarks[i]);
-                do_encryption_decryption(pt, ad, benchmarks[i], 0, 1);
+                do_encryption_decryption(pt, ad, benchmarks[i], 0, 0);
             }
         }
 
@@ -199,12 +199,9 @@ void do_encryption_decryption(uint8_t pt[32], uint8_t ad[32],
         neorv32_uart0_printf("\n");
     }
 
-    int rx_fifo_size = get_rx_fifo_size();
-    int tx_fifo_size = get_tx_fifo_size();
-
     uint64_t before = neorv32_cpu_get_cycle();
     crypto_array_t *ciphertext =
-        encrypt(ad_block, pt_block, tag, text_out_buffer, rx_fifo_size, tx_fifo_size);
+        encrypt(ad_block, pt_block, tag, text_out_buffer);
     uint64_t after = neorv32_cpu_get_cycle();
     neorv32_uart0_printf("Encryption took: %d cycles\n", after - before);
 
@@ -222,7 +219,7 @@ void do_encryption_decryption(uint8_t pt[32], uint8_t ad[32],
 
     before = neorv32_cpu_get_cycle();
     crypto_array_t *plaintext = decrypt(ad_block, ciphertext, tag,
-                                        text_out_buffer, resulting_tag_buffer, rx_fifo_size, tx_fifo_size);
+                                        text_out_buffer, resulting_tag_buffer);
     after = neorv32_cpu_get_cycle();
     neorv32_uart0_printf("Decryption took: %d cycles\n", after - before);
 

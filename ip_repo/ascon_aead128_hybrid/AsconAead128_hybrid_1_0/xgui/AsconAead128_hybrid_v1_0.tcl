@@ -11,6 +11,8 @@ proc init_gui { IPINST } {
   ipgui::add_param $IPINST -name "C_S00_AXI_HIGHADDR" -parent ${Page_0}
   ipgui::add_param $IPINST -name "C_S00_AXIS_TDATA_WIDTH" -parent ${Page_0} -widget comboBox
 
+  set USE_STREAM [ipgui::add_param $IPINST -name "USE_STREAM"]
+  set_property tooltip {Select if Axi-Stream interfaces are used, otherwise unselect} ${USE_STREAM}
 
 }
 

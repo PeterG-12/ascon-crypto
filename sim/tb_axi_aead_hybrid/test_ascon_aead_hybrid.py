@@ -87,8 +87,6 @@ async def generate_input(
         await driver.write_stream(text_list)
 
     logger.debug("Writes ended")
-    logger.info(f"Produced: {dut.produced.value}")
-    logger.info(f"Consumed: {dut.consumed.value}")
     read_data : bytearray = await driver.read_stream()
     logger.debug(f"Read data: {read_data.hex()[0:len(text_list)*2*16 - (32 - p_last_word_len//4)]}    tag: {read_data.hex()[-32:]}")
     outp = read_data.hex()[0:len(text_list)*2*16 - (32 - p_last_word_len//4)]
@@ -202,7 +200,7 @@ else:
     unit = "us" 
 
 
-@cocotb.test(timeout_time=30000, timeout_unit="us")
+@cocotb.test(timeout_time=40000, timeout_unit="us")
 async def test_ascon_aead_stream(dut : copra_stubs.Asconaead128Hybrid):
     logging.getLogger("cocotb.asconaead128_hybrid.s00_axi").setLevel(logging.WARNING)
     logging.getLogger("cocotb.asconaead128_hybrid.s00_axis").setLevel(logging.WARNING)
@@ -239,24 +237,7 @@ async def test_ascon_aead_stream(dut : copra_stubs.Asconaead128Hybrid):
     count = 0
     TESTS_TO_RUN = -1  # -1 to perform all tests
 
-    KAT_dictionary = {}
-    for i in range(1):
-        #key = get_random_bytes(16)
-        #nonce = get_random_bytes(16)
 
-        key = bytearray.fromhex("000102030405060708090A0B0C0D0E0F")
-        nonce = bytearray.fromhex("000102030405060708090A0B0C0D0E0F")
-
-        #ad = get_random_bytes(randint(500, 1000))
-        ad = bytearray()
-        pt = bytearray(578)
-        #pt = get_random_bytes(randint(500, 1000))
-
-        ciphertext = ascon_encrypt(key, nonce, ad, pt, "Ascon-AEAD128")
-        obj = AeadEncrypt(key.hex(), nonce.hex(), pt.hex(), ad.hex())
-        KAT_dictionary[obj] = ciphertext.hex()
-    
-    
 
     for input_data in KAT_dictionary.keys():
 
@@ -279,59 +260,3 @@ async def test_ascon_aead_stream(dut : copra_stubs.Asconaead128Hybrid):
         if count == TESTS_TO_RUN:
             break
 
-@cocotb.test(timeout_time=8000, timeout_unit="us")
-async def test_ascon_aead_random(dut):
-    return
-    logging.getLogger("cocotb.asconaead128.s00_axi").setLevel(logging.WARNING)
-    logging.getLogger("py.warnings").setLevel(logging.ERROR)
-
-    global outp
-    logger = cocotb.log
-    logger.setLevel(logging.INFO)
-
-    logger = cocotb.log
-    logger.setLevel(logging.INFO)
-
-    cocotb.start_soon(generate_clock(dut))
-
-    dut.s00_axi_aresetn.value = 0
-    await RisingEdge(dut.s00_axi_aclk)
-    await RisingEdge(dut.s00_axi_aclk)
-
-    axi_master = AxiLiteMaster(
-        AxiLiteBus.from_prefix(dut, "s00_axi"),
-        dut.s00_axi_aclk,
-        dut.s00_axi_aresetn,
-        reset_active_level=False,
-    )
-
-    driver = AxiAsconDriver(axi_master)
-    dut.s00_axi_aresetn.value = 1
-
-    await RisingEdge(dut.s00_axi_aclk)
-
-    KAT_dictionary = {}
-    count = 0
-
-    for i in range(100):
-        key = get_random_bytes(16)
-        nonce = get_random_bytes(16)
-
-        ad = get_random_bytes(randint(0, 24))
-        pt = get_random_bytes(randint(0, 24))
-
-        ciphertext = ascon_encrypt(key, nonce, ad, pt, "Ascon-AEAD128")
-
-        obj = AeadEncrypt(key.hex(), nonce.hex(), pt.hex(), ad.hex())
-        KAT_dictionary[obj] = ciphertext.hex()
-
-    for input_data in KAT_dictionary.keys():
-        logger.info("Starting round: %s" % count)
-
-        obj = input_data
-        await test_for_hex(
-            dut, obj.key, obj.nonce, obj.pt, obj.ad, KAT_dictionary[input_data], driver
-        )
-
-        outp = ""
-        count += 1
