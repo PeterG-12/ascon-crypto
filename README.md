@@ -1,10 +1,10 @@
 # NIST SP 800-232 ASCON AEAD128 (and Hash256)
 
+[![Cocotb Verification](https://github.com/PeterG-12/ascon-crypto/actions/workflows/github_cocotb_verification.yml/badge.svg)](https://github.com/PeterG-12/ascon-crypto/actions/workflows/github_cocotb_verification.yml)
+
 Hardware software co-development repository showcasing development in parallel in VHDL, Python (cocotb testbench) and C. The aim of the repository is to provide a verified implementation of an Ascon AEAD-128 hardware accelerator that is viable (in terms of space and running time) for deployment on any SoC with constrained resources. The goal of the repository is also to showcase the comparison of the speed of the hardware implementation to software implementations running on different CPUs. The hardware implementation was based on the algorithms presented in [NIST Special Publication 800-232](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-232.pdf).
 
-The repository includes a bare-metal C driver that was loaded onto the [NEORV32 processor](https://github.com/stnolting/neorv32.git) running on the [Artix-7 Wukong Dev Board FPGA](https://github.com/ChinaQMTECH/QM_XC7A100T_WUKONG_BOARD.git) and handles the handshaking and MMIO of the hardware module. Currently the example can be accessed through a simple CLI program over UART. This was also verified with KATs and its benchmarks can be seen in the tables below.
-
-Currently the example can be accessed trough an UART interface
+The repository includes a bare-metal C driver that was loaded onto the [NEORV32 processor](https://github.com/stnolting/neorv32.git) running on the [Artix-7 Wukong Dev Board FPGA](https://github.com/ChinaQMTECH/QM_XC7A100T_WUKONG_BOARD.git) and handles the handshaking and MMIO of the hardware module. This was also verified with KATs and its benchmarks can be seen in the tables below. Currently the example can be accessed through a simple CLI program over UART. 
 
 ![UART CLI Demo](images/presentation/demo_uart.gif)
 
@@ -41,12 +41,12 @@ Many thanks to all developers that provided these tools.
 ### Cycle by cycle AXI-Stream Handshaking
 ![AXI-Stream Bus Handshake](images/presentation/axi-stream-handshake.png)
 
-## Synthesis and Implementation information (baseline Axi-Lite implementation)
 
-
-### SoC block design
+## SoC block design
 ![AXI-Stream SoC Block Design](images/presentation/axi-stream-blockdesign.png)
 
+
+## Synthesis and Implementation information (baseline Axi-Lite implementation)
 
 Elements used by the AsconAead128
 
@@ -66,10 +66,7 @@ Vivado timing analysis for the whole SoC confirms that the timing closures acros
 - Hold WHS: 0.061 ns (Met)
 - Pulse Width WPWS: 7.0 ns (Met)
 
-## Continous Integration using Github Actions
-
-
-[![Cocotb Verification](https://github.com/PeterG-12/ascon-crypto/actions/workflows/github_cocotb_verification.yml/badge.svg)](https://github.com/PeterG-12/ascon-crypto/actions/workflows/github_cocotb_verification.yml)
+## Continuous Integration using Github Actions
 
 Automated regression runs execute on every push via *GitHub Actions* using *GHDL* and *Cocotb* to verify:
 * `ascon_hash`
@@ -133,7 +130,7 @@ The raw results from benchmarking can be found in the table below.
 Results translated to cycles per byte.
 
 | Message Length | NEORV32 SoC Encryption Axi-lite (cpb) | NEORV32 SoC Encryption Axi-stream (cpb) | Cocotb Simulation Encryption (cpb) |
-| --- | --- | --- |
+| --- | --- | --- | --- |
 | 1 Byte | 940.00  | 621.00 | 113.0 |
 | 8 Bytes | 117.50 | 77.6 | 14.13 |
 | 16 Bytes | 70.75 | 48.5 | 8.75 |
