@@ -49,6 +49,9 @@ Vivado timing analysis for the whole SoC confirms that the timing closures acros
 
 ## Continous Integration using Github Actions
 
+
+[![Cocotb Verification](https://github.com/PeterG-12/ascon-crypto/actions/workflows/github_cocotb_verification.yml/badge.svg)](https://github.com/PeterG-12/ascon-crypto/actions/workflows/github_cocotb_verification.yml)
+
 Automated regression runs execute on every push via *GitHub Actions* using *GHDL* and *Cocotb* to verify:
 * `ascon_hash`
 * `ascon_aead`
