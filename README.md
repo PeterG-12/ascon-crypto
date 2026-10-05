@@ -33,6 +33,10 @@ The project was developed incrementally, performing comparisons at each step aga
 
 Many thanks to all developers that provided these tools.
 
+
+### Board setup
+![Photo of board setup](images/presentation/axi-stream-board-setup.jpg)
+
 ## Hardware Verification Waveforms
 
 ### Execution overview
@@ -158,6 +162,9 @@ Taken from [ascon-c](https://github.com/ascon/ascon-c.git)
 | **NEORV32 + AXI-Lite HW module SoC (RISC-V) (Baseline v0.1)** | **940** | **117.5** | **70.8** | **43.7** | **30.1** | **17.1** | **~16.6** |
 | **NEORV32 + AXI-Stream HW module SoC (RISC-V) (Hybrid)** | **621** | **77.6** | **48.5** | **29.1** | **19.4** | **10.2** | **~9.9** |
 | **Cocotb HW Simulation** | **113** | **14.1** | **8.8** | **5.6** | **4.0** | **2.5** | **~2.4** |
+
+### Conculison: Compared to the Baseline Axi-Lite implementation, an improvment of **40%** was achieved thanks to the Axi-Stream implementation
+
 
 ![CPU comparison schematic](images/charts/ascon_cpu_comparison_1536b.png)
 ![Raw cycles schematic](images/charts/ascon_raw_cycles.png)
